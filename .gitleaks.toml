@@ -1,0 +1,65 @@
+# gitleaks config · FleetSec SecOps
+# Detecta secretos en pre-commit y CI.
+# Spec: https://github.com/gitleaks/gitleaks#configuration
+
+title = "FleetSec SecOps gitleaks config"
+
+# Extiende las reglas default oficiales de gitleaks (cubre AWS, GCP, Azure, GitHub,
+# Slack, Stripe, JWT, PEM, generic API keys, etc.)
+[extend]
+useDefault = true
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Allowlist documentado (no es supresión silenciosa)
+# Cada entrada usa el formato canónico de supresión:
+#   # Rule: <regla>
+#   # Reason: <motivo específico>
+#   # Date: YYYY-MM-DD
+#   # Responsible: <email/handle>
+#   # Review-by: YYYY-MM-DD
+# ──────────────────────────────────────────────────────────────────────────────
+
+[allowlist]
+description = "Ejemplos de PoC y fixtures de testing — NO son credenciales reales"
+
+# Paths excluidos del escaneo (con justificación)
+paths = [
+  # Rule: paths
+  # Reason: Fixtures de testing contienen JWT/tokens dummy intencionalmente para reproducir vulnerabilidades V-02 (JWT alg:none) y V-10 (hardcoded credentials). Son strings literales documentados como sintéticos en cada ficha.
+  # Date: 2026-06-15
+  # Responsible: juan.andres@fleetsec.co
+  # Review-by: 2026-09-15
+  '''vapt/findings/.*\.md$''',
+  '''vapt/preflight/.*''',
+
+  # Rule: paths
+  # Reason: docs/ai-report.md contiene el ejemplo literal de la regla Sigma con sintaxis ficticia que se discute como alucinación detectada. No es credencial.
+  # Date: 2026-06-15
+  # Responsible: juan.andres@fleetsec.co
+  # Review-by: 2026-09-15
+  '''docs/ai-report\.md$''',
+]
+
+# Regexes adicionales para reducir falsos positivos en strings claramente sintéticos
+regexes = [
+  # Rule: regexes
+  # Reason: Patrones obvios de placeholder en docs/examples
+  # Date: 2026-06-15
+  # Responsible: juan.andres@fleetsec.co
+  # Review-by: 2026-09-15
+  '''YOUR_[A-Z_]+_HERE''',
+  '''<your-[a-z-]+>''',
+  '''sk_test_[a-zA-Z0-9]{24}''',
+  '''AKIAIOSFODNN7EXAMPLE''',
+  '''wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY''',
+]
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Reglas custom adicionales (sobre las default)
+# ──────────────────────────────────────────────────────────────────────────────
+
+[[rules]]
+id = "fleetsec-internal-token"
+description = "Token interno con prefijo fsec_"
+regex = '''fsec_(live|prod)_[a-zA-Z0-9]{32,}'''
+tags = ["secret", "fleetsec", "internal"]

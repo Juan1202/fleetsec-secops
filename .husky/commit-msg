@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+# commit-msg hook · FleetSec SecOps · Husky v9 syntax
+
+npx --no-install commitlint --edit "$1" || {
+  echo ""
+  echo "❌ Commit message inválido."
+  echo ""
+  echo "Formato Conventional Commits requerido:"
+  echo "   <type>(<scope>): <description>"
+  echo ""
+  echo "Ejemplos válidos:"
+  echo "   feat(pipeline): add ZAP DAST stage with OpenAPI coverage 80%"
+  echo "   fix(security): remediate V-01 SQL injection in /api/items"
+  echo "   docs(adr): add ADR-003 KMS key-per-service decision"
+  echo ""
+  exit 1
+}

@@ -1,0 +1,41 @@
+# CODEOWNERS — FleetSec SecOps
+# Documentación: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Cada cambio en paths sensibles requiere review de AL MENOS dos owners.
+# Patterns aplican en orden — el último match gana.
+
+# Default: cualquier cambio requiere al menos el owner principal
+*                               @juanandresmoya
+
+# Pipeline / CI — cualquier cambio requiere doble review
+/.github/                       @juanandresmoya @security-reviewer
+/.github/workflows/             @juanandresmoya @security-reviewer
+/.github/CODEOWNERS             @juanandresmoya @security-reviewer
+
+# Infraestructura como código — alto blast radius
+/terraform/                     @juanandresmoya @platform-reviewer
+*.tf                            @juanandresmoya @platform-reviewer
+
+# Contenedores — supply chain
+/Dockerfile                     @juanandresmoya @security-reviewer
+**/Dockerfile                   @juanandresmoya @security-reviewer
+/docker-compose.yml             @juanandresmoya @security-reviewer
+/app/Dockerfile                 @juanandresmoya @security-reviewer
+
+# Políticas / gates de seguridad
+/.semgrepignore                 @juanandresmoya @security-reviewer
+/.trivyignore                   @juanandresmoya @security-reviewer
+/.gitleaks.toml                 @juanandresmoya @security-reviewer
+/checkov.yml                    @juanandresmoya @security-reviewer
+/docs/break-glass.md            @juanandresmoya @security-reviewer
+/docs/suppression-policy.md     @juanandresmoya @security-reviewer
+
+# IR — playbooks ejecutables
+/ir/                            @juanandresmoya @security-reviewer
+
+# Reports VAPT (evidencia entregable)
+/vapt/findings/                 @juanandresmoya
+/vapt/reports/                  @juanandresmoya @security-reviewer
+
+# AI Report (mandatorio, actualización incremental)
+/docs/ai-report.md              @juanandresmoya

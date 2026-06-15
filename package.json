@@ -1,0 +1,24 @@
+{
+  "name": "fleetsec-secops",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FleetSec SecOps — Prueba Técnica Ingeniero de Ciberseguridad",
+  "scripts": {
+    "prepare": "husky install",
+    "commitlint": "commitlint --edit"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.5.0",
+    "@commitlint/config-conventional": "^19.5.0",
+    "husky": "^9.1.6"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/<owner>/fleetsec-secops.git"
+  },
+  "author": "Juan Andrés Moya",
+  "license": "MIT"
+}

@@ -1,0 +1,93 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm
+.yarn
+package-lock.json.bak
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.coverage
+.tox/
+venv/
+.venv/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+!example.tfvars
+.terraform/
+.terraform.lock.hcl
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.iml
+
+# Build artifacts
+dist/
+build/
+target/
+out/
+*.log
+
+# Security artifacts that should NEVER be committed
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+.env.local
+.env.*.local
+secrets.json
+credentials.json
+*.kdbx
+.aws/
+.gnupg/
+
+# CI / scan artifacts
+trivy-results.sarif
+semgrep-results.json
+checkov-results.json
+zap-report.html
+sbom.json
+gitleaks-report.json
+*.cdx.json
+
+# IR evidence (local triage)
+ir/evidence-local/
+*.pcap
+*.mem
+*.dump
+
+# Docker
+.docker/
+
+# OS
+.Trash-*
+ehthumbs.db
+
+# Reports rendered (DOCX/PDF are committed in vapt/reports/ for the entregable)
+~$*.docx
+~$*.xlsx

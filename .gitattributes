@@ -1,0 +1,35 @@
+# Normalize line endings to LF on commit, regardless of OS
+* text=auto eol=lf
+
+# Shell scripts MUST be LF (rompen en Linux/macOS si tienen CRLF)
+*.sh text eol=lf
+*.bash text eol=lf
+.husky/* text eol=lf
+
+# YAML / TOML / config files
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+
+# Markdown / docs
+*.md text
+*.txt text
+
+# Source code
+*.js text
+*.ts text
+*.py text
+*.tf text
+*.tfvars text
+
+# Binary files (no conversion)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.zip binary
+*.tar.gz binary
+*.docx binary
+*.xlsx binary
+*.pptx binary

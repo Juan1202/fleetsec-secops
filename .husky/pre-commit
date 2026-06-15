@@ -1,0 +1,27 @@
+#!/usr/bin/env sh
+# pre-commit hook · FleetSec SecOps · Husky v9 syntax
+# Corre gitleaks contra los cambios staged. En local: warn-only si no está instalado.
+# En CI: el workflow security.yml ejecuta gitleaks-action que SÍ es bloqueante.
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "⚠️  gitleaks no instalado en PATH (developer machine)."
+  echo "   Instalación recomendada:"
+  echo "     Windows (scoop):  scoop install gitleaks"
+  echo "     Windows (choco):  choco install gitleaks"
+  echo "     macOS:            brew install gitleaks"
+  echo "     Linux:            https://github.com/gitleaks/gitleaks/releases"
+  echo ""
+  echo "   Skipping local pre-commit scan. CI lo correrá igual (bloqueante)."
+  exit 0
+fi
+
+echo "🔍 Ejecutando gitleaks sobre los cambios staged..."
+gitleaks protect --staged --verbose --config .gitleaks.toml || {
+  echo ""
+  echo "❌ pre-commit bloqueado: gitleaks detectó secretos."
+  echo "   Si es falso positivo, agrega excepción documentada en .gitleaks.toml"
+  echo "   con el formato canónico (Rule/Reason/Date/Responsible/Review-by)."
+  exit 1
+}
+
+echo "✅ gitleaks OK"
