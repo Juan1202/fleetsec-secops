@@ -85,8 +85,21 @@ jobs:
   secrets:
     name: Secrets (gitleaks)
     runs-on: ubuntu-latest
+    # Hereda el top-level: contents:read (checkout) + security-events:write (SARIF).
     steps:
-      - run: echo "TODO - gitleaks-action → SARIF"
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # gitleaks escanea el historial de commits, no solo el árbol de trabajo.
+          fetch-depth: 0
+
+      - name: gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_CONFIG: ${{ github.workspace }}/.gitleaks.toml
+          # gitleaks-action sube el SARIF a Code Scanning automáticamente.
+          # Repo público individual → sin licencia requerida.
+
 
   # ── Stage 6 · DAST ──────────────────────────────────────────────────────────
   # El más pesado: levanta la app y corre ZAP autenticado vía OpenAPI.
