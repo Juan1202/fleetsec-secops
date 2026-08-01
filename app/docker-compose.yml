@@ -1,0 +1,23 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# FleetSec Vulnerable App — docker-compose
+# Un comando levanta el entorno de demostración (bonus +5%):
+#   docker compose -f app/docker-compose.yml up -d
+# App disponible en http://localhost:8080 · OpenAPI en /v3/api-docs · Swagger en /swagger-ui.html
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+  vulnerable-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: fleetsec/vulnerable-app:fsec12
+    container_name: fleetsec-vulnerable-app
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/v3/api-docs"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 45s
+    restart: unless-stopped
