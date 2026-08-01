@@ -99,8 +99,55 @@ jobs:
   sca:
     name: SCA (Trivy fs)
     runs-on: ubuntu-latest
+    # Hereda top-level: contents:read + security-events:write (SARIF).
     steps:
-      - run: echo "TODO - Trivy filesystem sobre app/ → SARIF"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (+ cache Maven)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build fat jar
+        # Se escanea el jar construido, NO el pom.xml: Trivy resolviendo pom.xml
+        # golpea rate-limit (429) de Maven Central y aborta. El fat jar embebe
+        # todas las deps transitivas → Trivy las detecta sin resolución remota.
+        working-directory: app
+        run: mvn -B -q clean package -DskipTests
+
+      - name: Trivy fs sobre el jar → SARIF
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/src" aquasec/trivy:latest \
+            fs --scanners vuln --format sarif --output /src/trivy-sca.sarif \
+            /src/app/target/vulnerable-app.jar
+
+      - name: Upload SARIF a Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-sca.sarif
+          category: trivy-sca
+
+      - name: "Gate — CVSS >= 8.0 (superset de >=8.0 directas / >=9.0 transitivas)"
+        run: |
+          # Spec: fallar en CVSS≥8.0 deps directas, ≥9.0 transitivas. Distinguir
+          # directa/transitiva desde el jar no es fiable, así que se aplica un gate
+          # conservador (superset): cualquier CVSS≥8.0 falla. Trivy SARIF pone el
+          # CVSS en rule.properties."security-severity".
+          n=$(jq '[ .runs[] as $r | $r.results[] | . as $res
+                    | ( $r.tool.driver.rules[] | select(.id==$res.ruleId)
+                        | .properties."security-severity" | tonumber? // 0 ) as $s
+                    | select($s >= 8.0) ] | length' trivy-sca.sarif)
+          echo "SCA — vulnerabilidades con CVSS ≥ 8.0: $n"
+          if [ "$n" -gt 0 ]; then
+            echo "::error::SCA gate FAIL — $n deps con CVSS ≥ 8.0 (ver Security tab)"
+            exit 1
+          fi
+          echo "SCA gate PASS"
 
   # ── Stage 4 · Container ─────────────────────────────────────────────────────
   container:
