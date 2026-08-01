@@ -251,8 +251,31 @@ jobs:
   sbom:
     name: SBOM (Syft → CycloneDX)
     runs-on: ubuntu-latest
+    # Hereda contents:read. No sube SARIF (genera artifact).
     steps:
-      - run: echo "TODO - Syft → CycloneDX JSON → artifact"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (+ cache Maven)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build fat jar
+        working-directory: app
+        run: mvn -B -q clean package -DskipTests
+
+      - name: Generate SBOM (Syft → CycloneDX JSON)
+        # Escanea el jar (SBOM de dependencias de la app). anchore/sbom-action sube
+        # el SBOM como artifact del workflow; en un evento release lo adjunta al release.
+        uses: anchore/sbom-action@v0
+        with:
+          file: app/target/vulnerable-app.jar
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+          artifact-name: sbom.cdx.json
 
   # ── Stage 8 · Secrets ───────────────────────────────────────────────────────
   secrets:
