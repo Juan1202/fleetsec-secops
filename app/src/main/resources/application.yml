@@ -1,0 +1,52 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# FleetSec Vulnerable App — configuración
+#
+# ⚠️  V10 · Hardcoded Credentials (CWE-798) — INTENCIONAL
+#     app.jwt.secret y app.admin.password están hardcoded a propósito. El pipeline
+#     (FSEC-13) debe detectarlos con gitleaks/Semgrep como hallazgo esperado. La
+#     remediación del Sprint 2 los migra a variables de entorno / secret manager.
+#     NO agregar este archivo al allowlist de gitleaks: debe seguir siendo detectable.
+# ──────────────────────────────────────────────────────────────────────────────
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: fleetsec-vulnerable-app
+  datasource:
+    url: jdbc:h2:mem:fleetsec;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+# ── Config de la app ──────────────────────────────────────────────────────────
+app:
+  # V10 · secreto de firma JWT hardcoded
+  jwt:
+    secret: "S3cr3tK3y-FleetSec-2026-Pr0d-DoNotShare-9f83b1c0a7e24d56"
+  # V10 · credenciales de admin hardcoded
+  admin:
+    username: "admin"
+    password: "FleetS3c@dm1n-2026!"
+  # Directorio base de reportes (V06). En contenedor: /app/reports.
+  reports:
+    dir: "reports"
+
+logging:
+  level:
+    co.fleetsec.vapp: INFO
