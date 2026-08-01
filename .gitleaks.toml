@@ -33,6 +33,13 @@ paths = [
   '''vapt/preflight/.*''',
 
   # Rule: paths
+  # Reason: app/smoke-tests.http contiene un JWT SINTETICO forjado con alg:none para reproducir el PoC de V02 (JWT alg:none). Es un fixture de prueba, no una credencial real. NO confundir con application.yml (V10), que debe seguir siendo detectable.
+  # Date: 2026-08-01
+  # Responsible: juan.andres@fleetsec.co
+  # Review-by: 2026-10-30
+  '''app/smoke-tests\.http$''',
+
+  # Rule: paths
   # Reason: docs/ai-report.md contiene el ejemplo literal de la regla Sigma con sintaxis ficticia que se discute como alucinación detectada. No es credencial.
   # Date: 2026-06-15
   # Responsible: juan.andres@fleetsec.co

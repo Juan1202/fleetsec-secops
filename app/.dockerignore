@@ -1,0 +1,8 @@
+target/
+logs/
+*.log
+.git/
+.gitignore
+*.md
+smoke-tests.http
+.mvn/
