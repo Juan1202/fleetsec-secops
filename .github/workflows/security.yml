@@ -43,8 +43,21 @@ jobs:
   commitlint:
     name: Commitlint
     runs-on: ubuntu-latest
+    # Hereda top-level (contents:read). Valida los commits del PR contra
+    # commitlint.config.js (Conventional Commits — requisito mandatorio del brief).
     steps:
-      - run: echo "TODO - validar Conventional Commits del PR"
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # commitlint-github-action necesita el historial para comparar el rango del PR.
+          fetch-depth: 0
+
+      - name: Commitlint (Conventional Commits)
+        uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: commitlint.config.js
+          # En PR valida base..head; en push a main valida el rango del push.
+          failOnWarnings: false
 
   # ── Stage 2 · SAST ──────────────────────────────────────────────────────────
   sast:
