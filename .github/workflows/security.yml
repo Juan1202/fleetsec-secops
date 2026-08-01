@@ -199,8 +199,40 @@ jobs:
   iac:
     name: IaC (Checkov)
     runs-on: ubuntu-latest
+    # Hereda top-level: contents:read + security-events:write (SARIF).
     steps:
-      - run: echo "TODO - Checkov sobre Dockerfile/compose/terraform → SARIF"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkov → SARIF
+        # framework dockerfile + terraform (este último cubre terraform/ en Sprint 3).
+        # Nota: Checkov no tiene framework docker_compose; los archivos compose no se
+        # escanean como IaC aquí. checkov escribe el SARIF como results_sarif.sarif.
+        continue-on-error: true
+        run: |
+          mkdir -p checkov-out
+          docker run --rm -v "$PWD:/src" bridgecrew/checkov:latest \
+            -d /src --framework dockerfile,terraform \
+            -o sarif --output-file-path /src/checkov-out
+
+      - name: Upload SARIF a Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: checkov-out/results_sarif.sarif
+          category: checkov
+
+      - name: Gate — fallar en cualquier check fallido
+        run: |
+          # Checkov OSS no asigna HIGH/CRITICAL sin la plataforma; el gate falla ante
+          # cualquier check fallido (los resultados del SARIF son solo los fallidos).
+          failed=$(jq '[ .runs[].results[] ] | length' checkov-out/results_sarif.sarif)
+          echo "Checkov — checks fallidos: $failed"
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::IaC gate FAIL — $failed checks fallidos (ver Security tab)"
+            exit 1
+          fi
+          echo "IaC gate PASS (0 fallidos)"
 
   # ── Stage 7 · SBOM ──────────────────────────────────────────────────────────
   sbom:
