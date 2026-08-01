@@ -1,0 +1,113 @@
+name: DevSecOps Security Pipeline
+
+# ──────────────────────────────────────────────────────────────────────────────
+# FSEC-13 · Pipeline DevSecOps de 8 stages sobre la app vulnerable (app/).
+# Gates: 0 CRITICAL/HIGH sin supresión auditada · SARIF al Security tab · SBOM ·
+# ≤15 min PR / ≤25 min main. Stages 2-5 en paralelo (jobs independientes).
+#
+# Stages:
+#   2 SAST       (Semgrep + 2 custom rules)      job: sast
+#   3 SCA        (Trivy fs)                       job: sca
+#   4 Container  (Trivy image)                    job: container
+#   5 IaC        (Checkov)                         job: iac
+#   6 DAST       (OWASP ZAP autenticado)          job: dast
+#   7 SBOM       (Syft → CycloneDX)               job: sbom
+#   8 Secrets    (gitleaks)                        job: secrets
+#   + commitlint (Conventional Commits)           job: commitlint
+#   + security-gate (agrega resultados)           job: security-gate
+# ──────────────────────────────────────────────────────────────────────────────
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# ⚠️ permissions mínimo explícito (NO el default amplio)
+# issues:write NO va aquí: se declara per-job solo en el job que crea issues
+# (dast → auto-issue MEDIUM; break-glass en FSEC-14). Menor privilegio: sast/sca/
+# container/iac/sbom/secrets no pueden tocar issues → limita blast radius si una
+# action de terceros se compromete.
+permissions:
+  contents: read
+  security-events: write   # upload SARIF a Code Scanning
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Conventional Commits ────────────────────────────────────────────────────
+  commitlint:
+    name: Commitlint
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "TODO - validar Conventional Commits del PR"
+
+  # ── Stage 2 · SAST ──────────────────────────────────────────────────────────
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "TODO - Semgrep + custom rules → SARIF"
+
+  # ── Stage 3 · SCA ───────────────────────────────────────────────────────────
+  sca:
+    name: SCA (Trivy fs)
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "TODO - Trivy filesystem sobre app/ → SARIF"
+
+  # ── Stage 4 · Container ─────────────────────────────────────────────────────
+  container:
+    name: Container (Trivy image)
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "TODO - build imagen + Trivy image → SARIF"
+
+  # ── Stage 5 · IaC ───────────────────────────────────────────────────────────
+  iac:
+    name: IaC (Checkov)
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "TODO - Checkov sobre Dockerfile/compose/terraform → SARIF"
+
+  # ── Stage 7 · SBOM ──────────────────────────────────────────────────────────
+  sbom:
+    name: SBOM (Syft → CycloneDX)
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "TODO - Syft → CycloneDX JSON → artifact"
+
+  # ── Stage 8 · Secrets ───────────────────────────────────────────────────────
+  secrets:
+    name: Secrets (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "TODO - gitleaks-action → SARIF"
+
+  # ── Stage 6 · DAST ──────────────────────────────────────────────────────────
+  # El más pesado: levanta la app y corre ZAP autenticado vía OpenAPI.
+  dast:
+    name: DAST (OWASP ZAP)
+    runs-on: ubuntu-latest
+    needs: [container]
+    # Menor privilegio: este job SÍ crea el auto-issue MEDIUM, por eso eleva
+    # issues:write solo aquí. Hereda el resto del top-level.
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - run: echo "TODO - docker compose up + ZAP auth scan sobre OpenAPI"
+
+  # ── Gate final · agrega resultados ──────────────────────────────────────────
+  # NOTA: la política verde/rojo se decide en ADR-004 con findings reales.
+  security-gate:
+    name: Security Gate
+    runs-on: ubuntu-latest
+    needs: [sast, sca, container, iac, dast, sbom, secrets, commitlint]
+    if: always()
+    steps:
+      - run: echo "TODO - agregar resultados de todos los stages y decidir gate (ADR-004)"
