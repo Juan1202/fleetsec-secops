@@ -1,5 +1,6 @@
 package co.fleetsec.vapp.domain;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -33,6 +34,8 @@ public class Vehicle {
 
     private String model;
 
+    /** {@code year} es palabra reservada en SQL/H2; se mapea a la columna {@code model_year}. */
+    @Column(name = "model_year")
     private Integer year;
 
     private Long ownerDriverId;
