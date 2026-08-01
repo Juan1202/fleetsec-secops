@@ -1,0 +1,11 @@
+FleetSec S.A.S. — Reporte mensual de flota
+Periodo: junio 2026
+Clasificación: INTERNO
+
+Vehículos activos: 60.142
+Viajes registrados: 1.284.507
+Kilómetros totales: 41.892.334
+Alertas de telemetría: 3.921
+
+Nota: documento sintético de ejemplo para la app vulnerable (V06 · Path Traversal).
+No contiene datos reales.
