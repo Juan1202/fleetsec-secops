@@ -50,8 +50,50 @@ jobs:
   sast:
     name: SAST (Semgrep)
     runs-on: ubuntu-latest
+    # Hereda top-level: contents:read (checkout) + security-events:write (SARIF).
     steps:
-      - run: echo "TODO - Semgrep + custom rules → SARIF"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Semgrep scan (registry rulesets + custom rules → SARIF)
+        # semgrep vía Docker: evita instalar y aísla la versión. Registry rulesets
+        # p/java, p/owasp-top-ten, p/secrets + las 2 custom rules de pipeline/semgrep/.
+        # continue-on-error: el scan "encuentra" (exit!=0) pero el gate decide abajo.
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/src" semgrep/semgrep \
+            semgrep scan \
+              --config p/java \
+              --config p/owasp-top-ten \
+              --config p/secrets \
+              --config /src/pipeline/semgrep/ \
+              /src/app \
+              --sarif --output /src/semgrep.sarif
+
+      - name: Upload SARIF a Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+      - name: Gate — fallar en findings ERROR (≈ HIGH/CRITICAL)
+        run: |
+          # Semgrep deja result.level vacío y pone la severidad en la regla
+          # (rule.defaultConfiguration.level). El gate resuelve el nivel efectivo:
+          # result.level // regla.defaultConfiguration.level // "warning".
+          eff='[ .runs[] as $r | $r.results[] | . as $res
+                 | ( $res.level
+                     // ( $r.tool.driver.rules[] | select(.id==$res.ruleId) | .defaultConfiguration.level )
+                     // "warning" ) as $lvl'
+          errors=$(jq "$eff | select(\$lvl==\"error\") ] | length" semgrep.sarif)
+          warns=$(jq "$eff | select(\$lvl==\"warning\") ] | length" semgrep.sarif)
+          echo "Semgrep findings — ERROR: $errors · WARNING: $warns"
+          if [ "$errors" -gt 0 ]; then
+            echo "::error::SAST gate FAIL — $errors findings ERROR (ver Security tab)"
+            exit 1
+          fi
+          echo "SAST gate PASS (0 ERROR)"
 
   # ── Stage 3 · SCA ───────────────────────────────────────────────────────────
   sca:

@@ -1,0 +1,69 @@
+rules:
+  # ===========================================================================
+  # FleetSec custom rule · missing-authz-check
+  # ===========================================================================
+  # Detecta endpoints Spring que reciben un identificador de recurso por path
+  # (@PathVariable) pero NO tienen control de autorización (@PreAuthorize) ni
+  # verificación de ownership. Esto es la raíz de IDOR (CWE-639) y de
+  # escalada por mass assignment (CWE-915) cuando el recurso se muta sin authz.
+  #
+  # Cubre:
+  #   V09 (IDOR)          → DriverController.trips()  GET /api/drivers/{id}/trips
+  #   V05 (Mass Assign.)  → DriverController.patch()  PATCH /api/drivers/{id}
+  #
+  # Estas reglas agregan valor sobre los rulesets default (p/java, p/owasp-top-ten)
+  # que NO modelan la ausencia de @PreAuthorize como finding.
+  # ===========================================================================
+
+  - id: fleetsec-missing-authz-on-pathvariable-endpoint
+    languages: [java]
+    severity: WARNING
+    message: >
+      Endpoint con @PathVariable de un recurso (id) sin @PreAuthorize ni
+      verificación de ownership. Riesgo de IDOR (CWE-639): un usuario podría
+      acceder o mutar recursos de otro. Agregar @PreAuthorize con verificación
+      de ownership (ej. #id == principal.id or hasRole('ADMIN')) o filtrar por
+      el sujeto autenticado del SecurityContext.
+    metadata:
+      cwe: "CWE-639: Authorization Bypass Through User-Controlled Key"
+      owasp: "A01:2021 - Broken Access Control"
+      asvs: "4.2.1"
+      references:
+        - https://cwe.mitre.org/data/definitions/639.html
+        - https://owasp.org/Top10/A01_2021-Broken_Access_Control/
+      confidence: MEDIUM
+      vectors: "V09, V05"
+    patterns:
+      - pattern-either:
+          - pattern: |
+              @GetMapping(...)
+              public $RET $METHOD(@PathVariable $IDTYPE $ID, ...) { ... }
+          - pattern: |
+              @PatchMapping(...)
+              public $RET $METHOD(@PathVariable $IDTYPE $ID, ...) { ... }
+          - pattern: |
+              @PutMapping(...)
+              public $RET $METHOD(@PathVariable $IDTYPE $ID, ...) { ... }
+          - pattern: |
+              @DeleteMapping(...)
+              public $RET $METHOD(@PathVariable $IDTYPE $ID, ...) { ... }
+      # No tiene @PreAuthorize / @PostAuthorize / @Secured en el método
+      - pattern-not: |
+          @PreAuthorize(...)
+          public $RET $METHOD(...) { ... }
+      - pattern-not: |
+          @PostAuthorize(...)
+          public $RET $METHOD(...) { ... }
+      - pattern-not: |
+          @Secured(...)
+          public $RET $METHOD(...) { ... }
+      # El id apunta a un recurso (heurística: nombre id/driverId/vehicleId/etc.)
+      - metavariable-regex:
+          metavariable: $ID
+          regex: '(?i)(id|.*Id)$'
+    paths:
+      include:
+        - "*Controller.java"
+      exclude:
+        - "*test*"
+        - "*Test.java"
