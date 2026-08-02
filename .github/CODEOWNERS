@@ -1,41 +1,45 @@
 # CODEOWNERS — FleetSec SecOps
 # Documentación: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 #
-# Cada cambio en paths sensibles requiere review de AL MENOS dos owners.
+# Contexto de prueba individual: el único colaborador es el autor (@Juan1202).
+# Ver ADR-009 (branch protection relajada para contexto solo-candidato): la revisión
+# requerida es 1 y enforce_admins está off, por lo que estos owners marcan intención
+# de revisión sobre paths sensibles aunque el aprobador sea el propio autor.
+# En un entorno de equipo real, estos paths tendrían un segundo owner distinto.
 # Patterns aplican en orden — el último match gana.
 
-# Default: cualquier cambio requiere al menos el owner principal
-*                               @juanandresmoya
+# Default: cualquier cambio requiere al owner principal
+*                               @Juan1202
 
-# Pipeline / CI — cualquier cambio requiere doble review
-/.github/                       @juanandresmoya @security-reviewer
-/.github/workflows/             @juanandresmoya @security-reviewer
-/.github/CODEOWNERS             @juanandresmoya @security-reviewer
+# Pipeline / CI — paths sensibles
+/.github/                       @Juan1202
+/.github/workflows/             @Juan1202
+/.github/CODEOWNERS             @Juan1202
 
 # Infraestructura como código — alto blast radius
-/terraform/                     @juanandresmoya @platform-reviewer
-*.tf                            @juanandresmoya @platform-reviewer
+/terraform/                     @Juan1202
+*.tf                            @Juan1202
 
 # Contenedores — supply chain
-/Dockerfile                     @juanandresmoya @security-reviewer
-**/Dockerfile                   @juanandresmoya @security-reviewer
-/docker-compose.yml             @juanandresmoya @security-reviewer
-/app/Dockerfile                 @juanandresmoya @security-reviewer
+/Dockerfile                     @Juan1202
+**/Dockerfile                   @Juan1202
+/docker-compose.yml             @Juan1202
+/app/Dockerfile                 @Juan1202
 
 # Políticas / gates de seguridad
-/.semgrepignore                 @juanandresmoya @security-reviewer
-/.trivyignore                   @juanandresmoya @security-reviewer
-/.gitleaks.toml                 @juanandresmoya @security-reviewer
-/checkov.yml                    @juanandresmoya @security-reviewer
-/docs/break-glass.md            @juanandresmoya @security-reviewer
-/docs/suppression-policy.md     @juanandresmoya @security-reviewer
+/.semgrepignore                 @Juan1202
+/.trivyignore                   @Juan1202
+/.gitleaks.toml                 @Juan1202
+/checkov.yml                    @Juan1202
+/docs/break-glass.md            @Juan1202
+/docs/suppression-policy.md     @Juan1202
 
 # IR — playbooks ejecutables
-/ir/                            @juanandresmoya @security-reviewer
+/ir/                            @Juan1202
 
 # Reports VAPT (evidencia entregable)
-/vapt/findings/                 @juanandresmoya
-/vapt/reports/                  @juanandresmoya @security-reviewer
+/vapt/findings/                 @Juan1202
+/vapt/reports/                  @Juan1202
 
 # AI Report (mandatorio, actualización incremental)
-/docs/ai-report.md              @juanandresmoya
+/docs/ai-report.md              @Juan1202
