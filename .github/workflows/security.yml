@@ -310,14 +310,96 @@ jobs:
   dast:
     name: DAST (OWASP ZAP)
     runs-on: ubuntu-latest
-    needs: [container]
-    # Menor privilegio: este job SÍ crea el auto-issue MEDIUM, por eso eleva
-    # issues:write solo aquí. Hereda el resto del top-level.
+    # SIN needs: el DAST levanta su propia app vía compose y corre independiente.
+    # (Un needs:[container] lo saltearía cuando container sale rojo por CVEs.)
+    # Menor privilegio: este job crea el auto-issue MEDIUM → issues:write solo aquí.
     permissions:
       contents: read
       issues: write
     steps:
-      - run: echo "TODO - docker compose up + ZAP auth scan sobre OpenAPI"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Levantar la app y esperar health
+        run: |
+          docker compose -f app/docker-compose.yml up -d --build
+          for i in $(seq 1 40); do
+            st=$(docker inspect -f '{{.State.Health.Status}}' fleetsec-vulnerable-app 2>/dev/null || echo starting)
+            if [ "$st" = "healthy" ]; then echo "app healthy"; break; fi
+            if [ "$i" = "40" ]; then echo "::error::la app no llegó a healthy"; docker logs --tail 50 fleetsec-vulnerable-app; exit 1; fi
+            sleep 3
+          done
+
+      - name: Obtener JWT (auth para el scan)
+        id: jwt
+        run: |
+          # La app no impone auth (no hay filtro de seguridad), así que el scan
+          # alcanza todo sin token; el JWT se incluye para cumplir el requisito de
+          # "DAST autenticado" del brief y demostrar el replay del Bearer.
+          token=$(curl -s -X POST http://localhost:8080/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d "{\"username\":\"admin\",\"password\":\"$ADMIN_PWD\"}" | jq -r '.token')
+          if [ -z "$token" ] || [ "$token" = "null" ]; then
+            echo "::error::no se obtuvo JWT"; exit 1
+          fi
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+        env:
+          # Credencial sintética de V10 (ya pública en application.yml).
+          ADMIN_PWD: FleetS3c@dm1n-2026!
+
+      - name: ZAP scan autenticado (api-scan en PR, full-scan en main)
+        continue-on-error: true
+        env:
+          ZAP_AUTH_HEADER_VALUE: "Bearer ${{ steps.jwt.outputs.token }}"
+        run: |
+          mkdir -p "$PWD/zap-out" && chmod 777 "$PWD/zap-out"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # PR: OpenAPI-directed, más rápido.
+            SCAN="zap-api-scan.py -t http://localhost:8080/v3/api-docs -f openapi"
+          else
+            # main: full-scan (spider + active) — más cobertura (p. ej. /h2-console).
+            SCAN="zap-full-scan.py -t http://localhost:8080"
+          fi
+          docker run --network host -v "$PWD/zap-out:/zap/wrk:rw" \
+            -e ZAP_AUTH_HEADER_VALUE \
+            ghcr.io/zaproxy/zaproxy:stable $SCAN \
+            -J zap-report.json -r zap-report.html
+
+      - name: Upload reporte ZAP (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: zap-out/zap-report.*
+
+      - name: Auto-issue en hallazgos MEDIUM (label security/medium)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          med=$(jq '[.site[].alerts[] | select(.riskcode=="2")] | length' zap-out/zap-report.json 2>/dev/null || echo 0)
+          echo "DAST — alertas MEDIUM: $med"
+          if [ "$med" -gt 0 ]; then
+            gh issue create \
+              --title "DAST: $med hallazgos MEDIUM (ZAP) — run ${{ github.run_id }}" \
+              --label "security/medium" \
+              --body "El DAST reportó $med hallazgos de riesgo MEDIUM. Ver el artifact 'zap-report' del run ${{ github.run_id }}." \
+              || echo "no se pudo crear el issue (¿label security/medium inexistente?)"
+          fi
+
+      - name: Gate — fallar en HIGH
+        run: |
+          high=$(jq '[.site[].alerts[] | select(.riskcode=="3")] | length' zap-out/zap-report.json 2>/dev/null || echo 0)
+          echo "DAST — alertas HIGH: $high"
+          if [ "$high" -gt 0 ]; then
+            echo "::error::DAST gate FAIL — $high alertas HIGH (ver artifact zap-report)"
+            exit 1
+          fi
+          echo "DAST gate PASS"
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f app/docker-compose.yml down || true
 
   # ── Gate final · agrega resultados ──────────────────────────────────────────
   # NOTA: la política verde/rojo se decide en ADR-004 con findings reales.
