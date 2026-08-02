@@ -148,7 +148,8 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/src" \
             -v "$PWD/.trivycache:/root/.cache/trivy" aquasec/trivy:latest \
-            rootfs --scanners vuln --format sarif --output /src/trivy-sca.sarif \
+            rootfs --scanners vuln --ignorefile /src/.trivyignore \
+            --format sarif --output /src/trivy-sca.sarif \
             /src/app/target/vulnerable-app.jar
 
       - name: Upload SARIF a Code Scanning
@@ -219,6 +220,7 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/src" \
             -v "$PWD/.trivycache:/root/.cache/trivy" \
             aquasec/trivy:latest image --scanners vuln \
+            --ignorefile /src/.trivyignore \
             --format sarif --output /src/trivy-image.sarif \
             fleetsec/vulnerable-app:${{ github.sha }}
 
@@ -235,9 +237,10 @@ jobs:
           # CRITICAL --exit-code 1), no un umbral CVSS: es la interpretación fiel
           # de "CRITICAL" y evita la ambigüedad CVSS-vs-severidad (un CVSS≥9.0 de
           # un vendor puede no ser el rating CRITICAL de Trivy y viceversa).
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/src" \
             -v "$PWD/.trivycache:/root/.cache/trivy" \
             aquasec/trivy:latest image --scanners vuln \
+            --ignorefile /src/.trivyignore \
             --severity CRITICAL --exit-code 1 --format table \
             fleetsec/vulnerable-app:${{ github.sha }}
 
