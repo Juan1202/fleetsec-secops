@@ -68,12 +68,19 @@ credentials.json
 
 # CI / scan artifacts
 trivy-results.sarif
+trivy-sca.sarif
+trivy-image.sarif
 semgrep-results.json
+semgrep.sarif
 checkov-results.json
+checkov-out/
 zap-report.html
+zap-out/
 sbom.json
+sbom.cdx.json
 gitleaks-report.json
 *.cdx.json
+.trivycache/
 
 # IR evidence (local triage)
 ir/evidence-local/

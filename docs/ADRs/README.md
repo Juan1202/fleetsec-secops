@@ -10,7 +10,7 @@
 | [ADR-001](ADR-001-branch-protection-from-day-zero.md) | Branch protection desde commit cero | 0 | ✅ Accepted (config enmendada por ADR-009) |
 | [ADR-002](ADR-002-public-repo-for-branch-protection.md) | Repositorio público para habilitar branch protection | 0 | ✅ Accepted |
 | [ADR-003](ADR-003-vulnerable-app-stack.md) | Stack de la app vulnerable: Custom Spring Boot Minimal | 1 | ✅ Accepted |
-| ADR-004 | Estructura del pipeline: paralelo vs secuencial + gate verde/rojo | 1 | ⏳ Proposed |
+| [ADR-004](ADR-004-pipeline-gate-strategy.md) | Estrategia del gate del pipeline: híbrido rojo/verde + risk-acceptance CVEs deps | 1 | ✅ Accepted |
 | ADR-005 | KMS CMK per service vs una sola CMK | 3 | ⏳ Proposed |
 | ADR-006 | Estrategia de rate limiting: Bucket4j vs API GW vs WAF | 1 | ⏳ Proposed |
 | ADR-007 | Formato de supresiones y proceso de revisión periódica | 1 | ⏳ Proposed |

@@ -1,0 +1,29 @@
+# .trivyignore · FleetSec SecOps
+# Risk-acceptance de CVEs de dependencias NO explotables en nuestra superficie REST.
+# Decisión: ADR-004 (gate híbrido). Respaldo: tabla de triage por explotabilidad.
+# NO es un fix — es una aceptación de riesgo con caducidad (Review-by). Re-evaluar
+# si cambia la configuración de la app (habilitar HTTP/2, typing polimórfico, etc.).
+# Los CVEs siguen visibles en el SBOM y en Code Scanning; solo se suprime el gate.
+
+# Rule: CVE-2024-50379,CVE-2024-56337,CVE-2025-24813,CVE-2025-55754,CVE-2025-66614,CVE-2026-41293,CVE-2026-43512,CVE-2026-43515
+# Reason: CVEs de tomcat-embed-core no explotables en esta app — requieren HTTP/2, compilación JSP, DIGEST auth, mTLS o RewriteValve, ninguno habilitado en un Spring Boot REST estándar (ver triage ADR-004). Presentes en el jar, code paths no alcanzables.
+# Date: 2026-08-02
+# Responsible: juan.andres@fleetsec.co
+# Review-by: 2026-10-31
+CVE-2024-50379
+CVE-2024-56337
+CVE-2025-24813
+CVE-2025-55754
+CVE-2025-66614
+CVE-2026-41293
+CVE-2026-43512
+CVE-2026-43515
+
+# Rule: CVE-2026-54512,CVE-2026-54513,GHSA-r7wm-3cxj-wff9
+# Reason: CVEs de jackson-databind/core (RCE por polymorphic deserialization) no explotables — la app no habilita default typing ni @JsonTypeInfo; los DTOs son records/Map simples (ver triage ADR-004). Re-evaluar si se introduce typing polimórfico.
+# Date: 2026-08-02
+# Responsible: juan.andres@fleetsec.co
+# Review-by: 2026-10-31
+CVE-2026-54512
+CVE-2026-54513
+GHSA-r7wm-3cxj-wff9

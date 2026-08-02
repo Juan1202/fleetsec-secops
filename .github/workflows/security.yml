@@ -1,0 +1,498 @@
+name: DevSecOps Security Pipeline
+
+# ──────────────────────────────────────────────────────────────────────────────
+# FSEC-13 · Pipeline DevSecOps de 8 stages sobre la app vulnerable (app/).
+# Gates: 0 CRITICAL/HIGH sin supresión auditada · SARIF al Security tab · SBOM ·
+# ≤15 min PR / ≤25 min main. Stages 2-5 en paralelo (jobs independientes).
+#
+# Stages:
+#   2 SAST       (Semgrep + 2 custom rules)      job: sast
+#   3 SCA        (Trivy fs)                       job: sca
+#   4 Container  (Trivy image)                    job: container
+#   5 IaC        (Checkov)                         job: iac
+#   6 DAST       (OWASP ZAP autenticado)          job: dast
+#   7 SBOM       (Syft → CycloneDX)               job: sbom
+#   8 Secrets    (gitleaks)                        job: secrets
+#   + commitlint (Conventional Commits)           job: commitlint
+#   + security-gate (agrega resultados)           job: security-gate
+# ──────────────────────────────────────────────────────────────────────────────
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# ⚠️ permissions mínimo explícito (NO el default amplio)
+# issues:write NO va aquí: se declara per-job solo en el job que crea issues
+# (dast → auto-issue MEDIUM; break-glass en FSEC-14). Menor privilegio: sast/sca/
+# container/iac/sbom/secrets no pueden tocar issues → limita blast radius si una
+# action de terceros se compromete.
+permissions:
+  contents: read
+  security-events: write   # upload SARIF a Code Scanning
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Conventional Commits ────────────────────────────────────────────────────
+  commitlint:
+    name: Commitlint
+    runs-on: ubuntu-latest
+    # Hereda top-level (contents:read). Valida los commits del PR contra
+    # commitlint.config.js (Conventional Commits — requisito mandatorio del brief).
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # commitlint-github-action necesita el historial para comparar el rango del PR.
+          fetch-depth: 0
+
+      - name: Commitlint (Conventional Commits)
+        uses: wagoid/commitlint-github-action@v6
+        with:
+          # NO se pasa configFile: la action v6 rechaza extensión .js. commitlint
+          # auto-detecta commitlint.config.js del root (el mismo que usa husky).
+          # En PR valida base..head; en push a main valida el rango del push.
+          failOnWarnings: false
+
+  # ── Stage 2 · SAST ──────────────────────────────────────────────────────────
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    # Hereda top-level: contents:read (checkout) + security-events:write (SARIF).
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Semgrep scan (registry rulesets + custom rules → SARIF)
+        # semgrep vía Docker: evita instalar y aísla la versión. Registry rulesets
+        # p/java, p/owasp-top-ten, p/secrets + las 2 custom rules de pipeline/semgrep/.
+        # continue-on-error: el scan "encuentra" (exit!=0) pero el gate decide abajo.
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/src" semgrep/semgrep \
+            semgrep scan \
+              --config p/java \
+              --config p/owasp-top-ten \
+              --config p/secrets \
+              --config /src/pipeline/semgrep/ \
+              /src/app \
+              --sarif --output /src/semgrep.sarif
+
+      - name: Upload SARIF a Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+      - name: Gate — fallar en findings ERROR (≈ HIGH/CRITICAL)
+        run: |
+          # Semgrep deja result.level vacío y pone la severidad en la regla
+          # (rule.defaultConfiguration.level). El gate resuelve el nivel efectivo:
+          # result.level // regla.defaultConfiguration.level // "warning".
+          eff='[ .runs[] as $r | $r.results[] | . as $res
+                 | ( $res.level
+                     // ( $r.tool.driver.rules[] | select(.id==$res.ruleId) | .defaultConfiguration.level )
+                     // "warning" ) as $lvl'
+          errors=$(jq "$eff | select(\$lvl==\"error\") ] | length" semgrep.sarif)
+          warns=$(jq "$eff | select(\$lvl==\"warning\") ] | length" semgrep.sarif)
+          echo "Semgrep findings — ERROR: $errors · WARNING: $warns"
+          if [ "$errors" -gt 0 ]; then
+            echo "::error::SAST gate FAIL — $errors findings ERROR (ver Security tab)"
+            exit 1
+          fi
+          echo "SAST gate PASS (0 ERROR)"
+
+  # ── Stage 3 · SCA ───────────────────────────────────────────────────────────
+  sca:
+    name: SCA (Trivy rootfs)
+    runs-on: ubuntu-latest
+    # Hereda top-level: contents:read + security-events:write (SARIF).
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (+ cache Maven)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build fat jar
+        # Se escanea el jar construido, NO el pom.xml: Trivy resolviendo pom.xml
+        # golpea rate-limit (429) de Maven Central y aborta. El fat jar embebe
+        # todas las deps transitivas → Trivy las detecta sin resolución remota.
+        working-directory: app
+        run: mvn -B -q clean package -DskipTests
+
+      # Nota: se usa `trivy rootfs`, NO `trivy fs`. Sobre un Spring Boot fat jar,
+      # `fs` reporta num=0 (no recursa BOOT-INF/lib/*.jar); `rootfs` sí lo desempaca
+      # y detecta las deps anidadas.
+
+      - name: Cache Trivy DB
+        uses: actions/cache@v4
+        with:
+          path: .trivycache
+          key: trivy-db-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: trivy-db-${{ runner.os }}-
+
+      - name: Trivy rootfs sobre el jar → SARIF
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/src" \
+            -v "$PWD/.trivycache:/root/.cache/trivy" aquasec/trivy:latest \
+            rootfs --scanners vuln --ignorefile /src/.trivyignore \
+            --format sarif --output /src/trivy-sca.sarif \
+            /src/app/target/vulnerable-app.jar
+
+      - name: Upload SARIF a Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-sca.sarif
+          category: trivy-sca
+
+      - name: "Gate — CVSS >= 8.0 (superset de >=8.0 directas / >=9.0 transitivas)"
+        run: |
+          # Spec: fallar en CVSS≥8.0 deps directas, ≥9.0 transitivas. Distinguir
+          # directa/transitiva desde el jar no es fiable, así que se aplica un gate
+          # conservador (superset): cualquier CVSS≥8.0 falla. Trivy SARIF pone el
+          # CVSS en rule.properties."security-severity".
+          n=$(jq '[ .runs[] as $r | $r.results[] | . as $res
+                    | ( $r.tool.driver.rules[] | select(.id==$res.ruleId)
+                        | .properties."security-severity" | tonumber? // 0 ) as $s
+                    | select($s >= 8.0) ] | length' trivy-sca.sarif)
+          echo "SCA — vulnerabilidades con CVSS ≥ 8.0: $n"
+          if [ "$n" -gt 0 ]; then
+            echo "::error::SCA gate FAIL — $n deps con CVSS ≥ 8.0 (ver Security tab)"
+            exit 1
+          fi
+          echo "SCA gate PASS"
+
+  # ── Stage 4 · Container ─────────────────────────────────────────────────────
+  container:
+    name: Container (Trivy image)
+    runs-on: ubuntu-latest
+    # Hereda top-level: contents:read + security-events:write (SARIF).
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prohibir base :latest (tag pinneado obligatorio)
+        run: |
+          # Cada FROM debe referenciar una imagen con tag explícito distinto de latest.
+          awk '/^[[:space:]]*FROM/ { img=$2;
+                 if (img !~ /:/ || img ~ /:latest$/) { print "unpinned base: " img; bad=1 } }
+               END { exit bad }' app/Dockerfile
+          echo "Base image pinneada OK"
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (cache de capas GHA)
+        # Buildx con cache GHA: reusa la capa de dependencias Maven
+        # (dependency:go-offline) y de compilación entre runs → gran ahorro.
+        uses: docker/build-push-action@v6
+        with:
+          context: app
+          load: true
+          tags: fleetsec/vulnerable-app:${{ github.sha }}
+          cache-from: type=gha,scope=vapp-image
+          cache-to: type=gha,scope=vapp-image,mode=max
+
+      - name: Cache Trivy DB
+        uses: actions/cache@v4
+        with:
+          path: .trivycache
+          key: trivy-db-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: trivy-db-${{ runner.os }}-
+
+      - name: Trivy image → SARIF
+        continue-on-error: true
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/src" \
+            -v "$PWD/.trivycache:/root/.cache/trivy" \
+            aquasec/trivy:latest image --scanners vuln \
+            --ignorefile /src/.trivyignore \
+            --format sarif --output /src/trivy-image.sarif \
+            fleetsec/vulnerable-app:${{ github.sha }}
+
+      - name: Upload SARIF a Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+
+      - name: Gate — fallar en CRITICAL
+        run: |
+          # Spec: "Fail CRITICAL". Se usa el rating nativo de Trivy (--severity
+          # CRITICAL --exit-code 1), no un umbral CVSS: es la interpretación fiel
+          # de "CRITICAL" y evita la ambigüedad CVSS-vs-severidad (un CVSS≥9.0 de
+          # un vendor puede no ser el rating CRITICAL de Trivy y viceversa).
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/src" \
+            -v "$PWD/.trivycache:/root/.cache/trivy" \
+            aquasec/trivy:latest image --scanners vuln \
+            --ignorefile /src/.trivyignore \
+            --severity CRITICAL --exit-code 1 --format table \
+            fleetsec/vulnerable-app:${{ github.sha }}
+
+  # ── Stage 5 · IaC ───────────────────────────────────────────────────────────
+  iac:
+    name: IaC (Checkov)
+    runs-on: ubuntu-latest
+    # Hereda top-level: contents:read + security-events:write (SARIF).
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkov → SARIF
+        # framework dockerfile + terraform (este último cubre terraform/ en Sprint 3).
+        # Nota: Checkov no tiene framework docker_compose; los archivos compose no se
+        # escanean como IaC aquí. checkov escribe el SARIF como results_sarif.sarif.
+        continue-on-error: true
+        run: |
+          mkdir -p checkov-out
+          docker run --rm -v "$PWD:/src" bridgecrew/checkov:latest \
+            -d /src --framework dockerfile,terraform \
+            -o sarif --output-file-path /src/checkov-out
+
+      - name: Upload SARIF a Code Scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: checkov-out/results_sarif.sarif
+          category: checkov
+
+      - name: Gate — fallar en cualquier check fallido
+        run: |
+          # Checkov OSS no asigna HIGH/CRITICAL sin la plataforma; el gate falla ante
+          # cualquier check fallido (los resultados del SARIF son solo los fallidos).
+          failed=$(jq '[ .runs[].results[] ] | length' checkov-out/results_sarif.sarif)
+          echo "Checkov — checks fallidos: $failed"
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::IaC gate FAIL — $failed checks fallidos (ver Security tab)"
+            exit 1
+          fi
+          echo "IaC gate PASS (0 fallidos)"
+
+  # ── Stage 7 · SBOM ──────────────────────────────────────────────────────────
+  sbom:
+    name: SBOM (Syft → CycloneDX)
+    runs-on: ubuntu-latest
+    # Hereda contents:read. No sube SARIF (genera artifact).
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (+ cache Maven)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build fat jar
+        working-directory: app
+        run: mvn -B -q clean package -DskipTests
+
+      - name: Generate SBOM (Syft → CycloneDX JSON)
+        # Escanea el jar (SBOM de dependencias de la app). anchore/sbom-action sube
+        # el SBOM como artifact del workflow; en un evento release lo adjunta al release.
+        uses: anchore/sbom-action@v0
+        with:
+          file: app/target/vulnerable-app.jar
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+          artifact-name: sbom.cdx.json
+
+  # ── Stage 8 · Secrets ───────────────────────────────────────────────────────
+  secrets:
+    name: Secrets (gitleaks)
+    runs-on: ubuntu-latest
+    # Hereda el top-level: contents:read (checkout) + security-events:write (SARIF).
+    #
+    # ⚠️ Cobertura de V10 (hardcoded credentials): este stage pasa VERDE sobre
+    # app/src/main/resources/application.yml. NO es un gap. gitleaks detecta
+    # secretos por firma/entropía (claves AWS, tokens JWT emitidos, PEM), no
+    # secretos SEMÁNTICOS de config como `app.jwt.secret: <literal legible>`.
+    # V10 lo cubre el Stage 2 (SAST) con la custom rule fleetsec-hardcoded-secret-in-yaml
+    # (severidad ERROR → bloquea). Cada herramienta en su dominio; no se duplica
+    # el finding en dos SARIF. Ver pipeline/README.md § "Cobertura por vector".
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # gitleaks escanea el historial de commits, no solo el árbol de trabajo.
+          fetch-depth: 0
+
+      - name: gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          # gitleaks-action@v2 exige GITHUB_TOKEN para escanear PRs (breaking change).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: ${{ github.workspace }}/.gitleaks.toml
+          # gitleaks-action sube el SARIF a Code Scanning automáticamente.
+          # Repo público individual → sin licencia requerida.
+
+
+  # ── Stage 6 · DAST ──────────────────────────────────────────────────────────
+  # El más pesado: levanta la app y corre ZAP autenticado vía OpenAPI.
+  dast:
+    name: DAST (OWASP ZAP)
+    runs-on: ubuntu-latest
+    # SIN needs: el DAST levanta su propia app vía compose y corre independiente.
+    # (Un needs:[container] lo saltearía cuando container sale rojo por CVEs.)
+    # Menor privilegio: este job crea el auto-issue MEDIUM → issues:write solo aquí.
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (cache GHA compartido con el job container)
+        # Mismo scope de cache que el job container → el segundo build es casi gratis.
+        # Se tagea como la imagen del compose para levantar con --no-build.
+        uses: docker/build-push-action@v6
+        with:
+          context: app
+          load: true
+          tags: fleetsec/vulnerable-app:fsec12
+          cache-from: type=gha,scope=vapp-image
+          cache-to: type=gha,scope=vapp-image,mode=max
+
+      - name: Levantar la app y esperar health
+        run: |
+          docker compose -f app/docker-compose.yml up -d --no-build
+          for i in $(seq 1 40); do
+            st=$(docker inspect -f '{{.State.Health.Status}}' fleetsec-vulnerable-app 2>/dev/null || echo starting)
+            if [ "$st" = "healthy" ]; then echo "app healthy"; break; fi
+            if [ "$i" = "40" ]; then echo "::error::la app no llegó a healthy"; docker logs --tail 50 fleetsec-vulnerable-app; exit 1; fi
+            sleep 3
+          done
+
+      - name: Obtener JWT (auth para el scan)
+        id: jwt
+        run: |
+          # La app no impone auth (no hay filtro de seguridad), así que el scan
+          # alcanza todo sin token; el JWT se incluye para cumplir el requisito de
+          # "DAST autenticado" del brief y demostrar el replay del Bearer.
+          token=$(curl -s -X POST http://localhost:8080/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d "{\"username\":\"admin\",\"password\":\"$ADMIN_PWD\"}" | jq -r '.token')
+          if [ -z "$token" ] || [ "$token" = "null" ]; then
+            echo "::error::no se obtuvo JWT"; exit 1
+          fi
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+        env:
+          # Credencial sintética de V10 (ya pública en application.yml).
+          ADMIN_PWD: FleetS3c@dm1n-2026!
+
+      - name: ZAP scan autenticado (api-scan en PR, full-scan en main)
+        continue-on-error: true
+        env:
+          ZAP_AUTH_HEADER_VALUE: "Bearer ${{ steps.jwt.outputs.token }}"
+        run: |
+          mkdir -p "$PWD/zap-out" && chmod 777 "$PWD/zap-out"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # PR: OpenAPI-directed, más rápido.
+            SCAN="zap-api-scan.py -t http://localhost:8080/v3/api-docs -f openapi"
+          else
+            # main: full-scan (spider + active) — más cobertura (p. ej. /h2-console).
+            SCAN="zap-full-scan.py -t http://localhost:8080"
+          fi
+          docker run --network host -v "$PWD/zap-out:/zap/wrk:rw" \
+            -e ZAP_AUTH_HEADER_VALUE \
+            ghcr.io/zaproxy/zaproxy:stable $SCAN \
+            -J zap-report.json -r zap-report.html
+
+      - name: Upload reporte ZAP (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: zap-out/zap-report.*
+
+      - name: Auto-issue en hallazgos MEDIUM (label security/medium)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          med=$(jq '[.site[].alerts[] | select(.riskcode=="2")] | length' zap-out/zap-report.json 2>/dev/null || echo 0)
+          echo "DAST — alertas MEDIUM: $med"
+          if [ "$med" -gt 0 ]; then
+            gh issue create \
+              --title "DAST: $med hallazgos MEDIUM (ZAP) — run ${{ github.run_id }}" \
+              --label "security/medium" \
+              --body "El DAST reportó $med hallazgos de riesgo MEDIUM. Ver el artifact 'zap-report' del run ${{ github.run_id }}." \
+              || echo "no se pudo crear el issue (¿label security/medium inexistente?)"
+          fi
+
+      - name: Gate — fallar en HIGH
+        run: |
+          high=$(jq '[.site[].alerts[] | select(.riskcode=="3")] | length' zap-out/zap-report.json 2>/dev/null || echo 0)
+          echo "DAST — alertas HIGH: $high"
+          if [ "$high" -gt 0 ]; then
+            echo "::error::DAST gate FAIL — $high alertas HIGH (ver artifact zap-report)"
+            exit 1
+          fi
+          echo "DAST gate PASS"
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f app/docker-compose.yml down || true
+
+  # ── Gate final · agrega resultados ──────────────────────────────────────────
+  # Único required status check para branch protection (evita listar los 8).
+  # Política del gate: ADR-004 (híbrido). Falla si algún stage no fue exitoso.
+  # En la baseline de detección, SAST/DAST fallan por los vectores V01-V10 sin
+  # remediar → gate rojo. Post-remediación (Sprint 2) → verde.
+  security-gate:
+    name: Security Gate
+    runs-on: ubuntu-latest
+    needs: [sast, sca, container, iac, dast, sbom, secrets, commitlint]
+    if: always()
+    steps:
+      - name: Agregar resultados de los stages
+        run: |
+          echo "=== Resultado por stage ==="
+          printf '  %-12s %s\n' \
+            SAST       "${{ needs.sast.result }}" \
+            SCA        "${{ needs.sca.result }}" \
+            Container  "${{ needs.container.result }}" \
+            IaC        "${{ needs.iac.result }}" \
+            DAST       "${{ needs.dast.result }}" \
+            SBOM       "${{ needs.sbom.result }}" \
+            Secrets    "${{ needs.secrets.result }}" \
+            commitlint "${{ needs.commitlint.result }}"
+
+          failed=""
+          for r in \
+            "SAST:${{ needs.sast.result }}" \
+            "SCA:${{ needs.sca.result }}" \
+            "Container:${{ needs.container.result }}" \
+            "IaC:${{ needs.iac.result }}" \
+            "DAST:${{ needs.dast.result }}" \
+            "SBOM:${{ needs.sbom.result }}" \
+            "Secrets:${{ needs.secrets.result }}" \
+            "commitlint:${{ needs.commitlint.result }}"; do
+            [ "${r##*:}" != "success" ] && failed="$failed ${r%%:*}"
+          done
+
+          if [ -n "$failed" ]; then
+            echo "::error::Security gate FAIL — stages no exitosos:$failed"
+            echo "Baseline de detección (ADR-004): SAST/DAST rojos por V01-V10 sin remediar. Post-Sprint 2 → verde."
+            exit 1
+          fi
+          echo "Security gate PASS — todos los stages verdes"
