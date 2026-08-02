@@ -111,7 +111,7 @@ jobs:
 
   # ── Stage 3 · SCA ───────────────────────────────────────────────────────────
   sca:
-    name: SCA (Trivy fs)
+    name: SCA (Trivy rootfs)
     runs-on: ubuntu-latest
     # Hereda top-level: contents:read + security-events:write (SARIF).
     steps:
@@ -454,11 +454,45 @@ jobs:
         run: docker compose -f app/docker-compose.yml down || true
 
   # ── Gate final · agrega resultados ──────────────────────────────────────────
-  # NOTA: la política verde/rojo se decide en ADR-004 con findings reales.
+  # Único required status check para branch protection (evita listar los 8).
+  # Política del gate: ADR-004 (híbrido). Falla si algún stage no fue exitoso.
+  # En la baseline de detección, SAST/DAST fallan por los vectores V01-V10 sin
+  # remediar → gate rojo. Post-remediación (Sprint 2) → verde.
   security-gate:
     name: Security Gate
     runs-on: ubuntu-latest
     needs: [sast, sca, container, iac, dast, sbom, secrets, commitlint]
     if: always()
     steps:
-      - run: echo "TODO - agregar resultados de todos los stages y decidir gate (ADR-004)"
+      - name: Agregar resultados de los stages
+        run: |
+          echo "=== Resultado por stage ==="
+          printf '  %-12s %s\n' \
+            SAST       "${{ needs.sast.result }}" \
+            SCA        "${{ needs.sca.result }}" \
+            Container  "${{ needs.container.result }}" \
+            IaC        "${{ needs.iac.result }}" \
+            DAST       "${{ needs.dast.result }}" \
+            SBOM       "${{ needs.sbom.result }}" \
+            Secrets    "${{ needs.secrets.result }}" \
+            commitlint "${{ needs.commitlint.result }}"
+
+          failed=""
+          for r in \
+            "SAST:${{ needs.sast.result }}" \
+            "SCA:${{ needs.sca.result }}" \
+            "Container:${{ needs.container.result }}" \
+            "IaC:${{ needs.iac.result }}" \
+            "DAST:${{ needs.dast.result }}" \
+            "SBOM:${{ needs.sbom.result }}" \
+            "Secrets:${{ needs.secrets.result }}" \
+            "commitlint:${{ needs.commitlint.result }}"; do
+            [ "${r##*:}" != "success" ] && failed="$failed ${r%%:*}"
+          done
+
+          if [ -n "$failed" ]; then
+            echo "::error::Security gate FAIL — stages no exitosos:$failed"
+            echo "Baseline de detección (ADR-004): SAST/DAST rojos por V01-V10 sin remediar. Post-Sprint 2 → verde."
+            exit 1
+          fi
+          echo "Security gate PASS — todos los stages verdes"
