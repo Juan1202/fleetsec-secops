@@ -131,10 +131,18 @@ jobs:
         working-directory: app
         run: mvn -B -q clean package -DskipTests
 
+      - name: Cache Trivy DB
+        uses: actions/cache@v4
+        with:
+          path: .trivycache
+          key: trivy-db-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: trivy-db-${{ runner.os }}-
+
       - name: Trivy fs sobre el jar → SARIF
         continue-on-error: true
         run: |
-          docker run --rm -v "$PWD:/src" aquasec/trivy:latest \
+          docker run --rm -v "$PWD:/src" \
+            -v "$PWD/.trivycache:/root/.cache/trivy" aquasec/trivy:latest \
             fs --scanners vuln --format sarif --output /src/trivy-sca.sarif \
             /src/app/target/vulnerable-app.jar
 
@@ -179,13 +187,32 @@ jobs:
                END { exit bad }' app/Dockerfile
           echo "Base image pinneada OK"
 
-      - name: Build image
-        run: docker build -t fleetsec/vulnerable-app:${{ github.sha }} app/
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (cache de capas GHA)
+        # Buildx con cache GHA: reusa la capa de dependencias Maven
+        # (dependency:go-offline) y de compilación entre runs → gran ahorro.
+        uses: docker/build-push-action@v6
+        with:
+          context: app
+          load: true
+          tags: fleetsec/vulnerable-app:${{ github.sha }}
+          cache-from: type=gha,scope=vapp-image
+          cache-to: type=gha,scope=vapp-image,mode=max
+
+      - name: Cache Trivy DB
+        uses: actions/cache@v4
+        with:
+          path: .trivycache
+          key: trivy-db-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: trivy-db-${{ runner.os }}-
 
       - name: Trivy image → SARIF
         continue-on-error: true
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/src" \
+            -v "$PWD/.trivycache:/root/.cache/trivy" \
             aquasec/trivy:latest image --scanners vuln \
             --format sarif --output /src/trivy-image.sarif \
             fleetsec/vulnerable-app:${{ github.sha }}
@@ -204,6 +231,7 @@ jobs:
           # de "CRITICAL" y evita la ambigüedad CVSS-vs-severidad (un CVSS≥9.0 de
           # un vendor puede no ser el rating CRITICAL de Trivy y viceversa).
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/.trivycache:/root/.cache/trivy" \
             aquasec/trivy:latest image --scanners vuln \
             --severity CRITICAL --exit-code 1 --format table \
             fleetsec/vulnerable-app:${{ github.sha }}
@@ -320,9 +348,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (cache GHA compartido con el job container)
+        # Mismo scope de cache que el job container → el segundo build es casi gratis.
+        # Se tagea como la imagen del compose para levantar con --no-build.
+        uses: docker/build-push-action@v6
+        with:
+          context: app
+          load: true
+          tags: fleetsec/vulnerable-app:fsec12
+          cache-from: type=gha,scope=vapp-image
+          cache-to: type=gha,scope=vapp-image,mode=max
+
       - name: Levantar la app y esperar health
         run: |
-          docker compose -f app/docker-compose.yml up -d --build
+          docker compose -f app/docker-compose.yml up -d --no-build
           for i in $(seq 1 40); do
             st=$(docker inspect -f '{{.State.Health.Status}}' fleetsec-vulnerable-app 2>/dev/null || echo starting)
             if [ "$st" = "healthy" ]; then echo "app healthy"; break; fi
