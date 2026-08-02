@@ -55,7 +55,8 @@ jobs:
       - name: Commitlint (Conventional Commits)
         uses: wagoid/commitlint-github-action@v6
         with:
-          configFile: commitlint.config.js
+          # NO se pasa configFile: la action v6 rechaza extensión .js. commitlint
+          # auto-detecta commitlint.config.js del root (el mismo que usa husky).
           # En PR valida base..head; en push a main valida el rango del push.
           failOnWarnings: false
 
@@ -131,6 +132,10 @@ jobs:
         working-directory: app
         run: mvn -B -q clean package -DskipTests
 
+      # Nota: se usa `trivy rootfs`, NO `trivy fs`. Sobre un Spring Boot fat jar,
+      # `fs` reporta num=0 (no recursa BOOT-INF/lib/*.jar); `rootfs` sí lo desempaca
+      # y detecta las deps anidadas.
+
       - name: Cache Trivy DB
         uses: actions/cache@v4
         with:
@@ -138,12 +143,12 @@ jobs:
           key: trivy-db-${{ runner.os }}-${{ github.run_id }}
           restore-keys: trivy-db-${{ runner.os }}-
 
-      - name: Trivy fs sobre el jar → SARIF
+      - name: Trivy rootfs sobre el jar → SARIF
         continue-on-error: true
         run: |
           docker run --rm -v "$PWD:/src" \
             -v "$PWD/.trivycache:/root/.cache/trivy" aquasec/trivy:latest \
-            fs --scanners vuln --format sarif --output /src/trivy-sca.sarif \
+            rootfs --scanners vuln --format sarif --output /src/trivy-sca.sarif \
             /src/app/target/vulnerable-app.jar
 
       - name: Upload SARIF a Code Scanning
@@ -328,6 +333,8 @@ jobs:
       - name: gitleaks scan
         uses: gitleaks/gitleaks-action@v2
         env:
+          # gitleaks-action@v2 exige GITHUB_TOKEN para escanear PRs (breaking change).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_CONFIG: ${{ github.workspace }}/.gitleaks.toml
           # gitleaks-action sube el SARIF a Code Scanning automáticamente.
           # Repo público individual → sin licencia requerida.
