@@ -2,6 +2,7 @@ package co.fleetsec.vapp.security;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -130,5 +131,18 @@ class InputValidationRemediationTest {
                         .content("{\"username\":\"admin\",\"password\":\"test-admin-pass\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").isNotEmpty());
+    }
+
+    // ── Security headers (defensa en profundidad; presentes incluso en un 401) ────
+    @Test
+    @DisplayName("Headers: toda respuesta lleva X-Content-Type-Options, X-Frame-Options, CSP, Referrer/Permissions-Policy")
+    void securityHeaders_arePresent() throws Exception {
+        mvc.perform(get("/api/drivers/search").param("q", "x")) // sin token → 401, pero con headers
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("X-Frame-Options", "DENY"))
+                .andExpect(header().string("Referrer-Policy", "strict-origin-when-cross-origin"))
+                .andExpect(header().exists("Content-Security-Policy"))
+                .andExpect(header().exists("Permissions-Policy"));
     }
 }
