@@ -31,8 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
  *       una query parametrizada; el input viaja como parámetro LIKE, no concatenado en el SQL.</li>
  *   <li><b>V05 · Mass Assignment (CWE-915):</b> {@code PATCH /api/drivers/{id}} vincula el body
  *       completo sobre la entidad, permitiendo setear {@code role=ADMIN}.</li>
- *   <li><b>V08 · Logging de PII (CWE-359 / Ley 1581):</b> se registran cédula/email/teléfono en
- *       texto plano en varios endpoints.</li>
+ *   <li><b>V08 · Logging de PII (CWE-359 / Ley 1581) — REMEDIADO:</b> los logs no vuelcan filas
+ *       con PII y el {@code PiiMaskingConverter} redacta correos/cédulas de forma transversal.</li>
  *   <li><b>V09 · IDOR (CWE-639):</b> {@code GET /api/drivers/{id}/trips} no verifica ownership.</li>
  * </ul>
  */
@@ -73,9 +73,10 @@ public class DriverController {
 
         List<Map<String, Object>> rows = jdbc.queryForList(DRIVER_SEARCH_SQL, like, like);
 
-        // ── V08 · Logging de PII (se redacta en el commit de V-08) ──────────────
-        log.info("Búsqueda de conductores. query=[{}] resultados={} datos={}",
-                DRIVER_SEARCH_SQL, rows.size(), rows);
+        // ── V-08 remediado · sin volcado de PII ─────────────────────────────────
+        // Solo se registra el conteo; no la query, no las filas (cédula/email/teléfono).
+        // El PiiMaskingConverter redacta además cualquier PII residual de forma transversal.
+        log.info("Búsqueda de conductores. resultados={}", rows.size());
 
         return ResponseEntity.ok(rows);
     }

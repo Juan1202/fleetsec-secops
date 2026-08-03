@@ -1,28 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Configuración de logging — INTENCIONALMENTE vulnerable.
+  Configuración de logging — V-08 REMEDIADO (CWE-359 / Ley 1581).
 
-  V08 · Logging de PII (CWE-359 / Ley 1581): no hay ninguna capa de redacción/máscara.
-  Los controllers registran cédula, email, teléfono y payloads en texto plano, y este
-  appender de archivo los persiste a disco sin sanitizar (evidencia reproducible del vector).
-
-  La remediación del Sprint 2 introduce un sanitizer (p. ej. un Converter/Filter de logback
-  o un mask layout) que redacta PII en todos los niveles.
+  Se registra la palabra de conversión %maskedMsg (PiiMaskingConverter) que redacta correos y
+  secuencias numéricas largas (cédula/teléfono/id) del mensaje ANTES de escribirlo a consola o a
+  disco. La redacción es transversal: cubre cualquier call site, no solo los conocidos.
 -->
 <configuration>
 
+    <conversionRule conversionWord="maskedMsg"
+                    converterClass="co.fleetsec.vapp.logging.PiiMaskingConverter"/>
+
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %maskedMsg%n</pattern>
         </encoder>
     </appender>
 
-    <!-- V08: persiste los logs (con PII sin redactar) a disco. -->
+    <!-- Persiste los logs (con PII redactada por %maskedMsg) a disco. -->
     <appender name="FILE" class="ch.qos.logback.core.FileAppender">
         <file>logs/fleetsec-app.log</file>
         <append>true</append>
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %maskedMsg%n</pattern>
         </encoder>
     </appender>
 
