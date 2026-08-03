@@ -1,0 +1,9 @@
+# Perfil de test (@ActiveProfiles("test")). Se mergea SOBRE application.yml y provee
+# secretos de test para que el contexto levante sin variables de entorno externas.
+# Excluido de la custom Semgrep rule fleetsec-hardcoded-secret-in-yaml por el path *test*.
+app:
+  jwt:
+    secret: "test-only-jwt-secret-not-real-min-32-bytes-abcdef"
+  admin:
+    username: "admin"
+    password: "test-admin-pass"
