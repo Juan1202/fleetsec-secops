@@ -1,7 +1,8 @@
 package co.fleetsec.vapp.web;
 
-import java.io.File;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,12 +19,10 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * Descarga de reportes de flota — <b>intencionalmente vulnerable</b>.
  *
- * <p><b>V06 · Path Traversal (CWE-22).</b> {@code GET /api/reports/download?file=} concatena el
- * parámetro {@code file} al directorio base sin sanitizar. Un valor como
- * {@code ../../../../etc/passwd} escapa del directorio de reportes y lee archivos arbitrarios.
- *
- * <p>La remediación (Sprint 2) normalizará la ruta y verificará que quede contenida en el
- * directorio base ({@code Path.normalize()} + {@code startsWith}).
+ * <p><b>V06 · Path Traversal (CWE-22) — REMEDIADO.</b> {@code GET /api/reports/download?file=}
+ * normaliza la ruta ({@code Path.normalize()}) y exige que quede contenida en el directorio base
+ * ({@code startsWith}). Un valor como {@code ../../../../etc/passwd} o una ruta absoluta se
+ * rechazan con 400.
  */
 @RestController
 @RequestMapping("/api/reports")
@@ -39,24 +38,33 @@ public class ReportController {
 
     @GetMapping("/download")
     public ResponseEntity<?> download(@RequestParam String file) {
-        // ── V06 · Path Traversal ────────────────────────────────────────────────
-        // Sin normalización ni verificación de contención: el input controla la ruta.
-        File target = new File(baseDir, file);
-        log.info("Descarga de reporte. file=[{}] resolved=[{}]", file, target.getPath());
+        // ── V-06 remediado · normalización + verificación de contención ──────────
+        // Se resuelve la ruta y se normaliza (colapsa ../), y se exige que quede DENTRO
+        // del directorio base. Un valor como ../../../../etc/passwd escapa del base y se
+        // rechaza; una ruta absoluta tampoco queda contenida.
+        Path base = Paths.get(baseDir).toAbsolutePath().normalize();
+        Path resolved = base.resolve(file).normalize();
+
+        if (!resolved.startsWith(base)) {
+            log.warn("Descarga rechazada por path traversal. file=[{}]", file);
+            return ResponseEntity.badRequest().body(Map.of("error", "Ruta no permitida"));
+        }
+        log.info("Descarga de reporte. file=[{}]", resolved.getFileName());
 
         try {
-            if (!target.exists() || target.isDirectory()) {
+            if (!Files.exists(resolved) || Files.isDirectory(resolved)) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(Map.of("error", "Reporte no encontrado: " + file));
+                        .body(Map.of("error", "Reporte no encontrado"));
             }
-            byte[] content = Files.readAllBytes(target.toPath());
+            byte[] content = Files.readAllBytes(resolved);
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + target.getName() + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"" + resolved.getFileName() + "\"")
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(content);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "No se pudo leer el archivo: " + e.getMessage()));
+                    .body(Map.of("error", "No se pudo leer el archivo"));
         }
     }
 }

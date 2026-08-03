@@ -89,4 +89,21 @@ class InputValidationRemediationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.parsed").value("ABC123"));
     }
+
+    // ── V-06 · Path Traversal ─────────────────────────────────────────────────────
+    @Test
+    @DisplayName("V-06 rechaza: file=../../../../etc/passwd escapa del base → 400")
+    void v06_pathTraversal_isRejected() throws Exception {
+        mvc.perform(get("/api/reports/download").param("file", "../../../../etc/passwd")
+                        .header("Authorization", driver2()))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("V-06 legítimo: un reporte dentro del directorio base se descarga → 200")
+    void v06_legitimateReport_isDownloaded() throws Exception {
+        mvc.perform(get("/api/reports/download").param("file", "reporte-flota-2026-06.txt")
+                        .header("Authorization", driver2()))
+                .andExpect(status().isOk());
+    }
 }
