@@ -2,9 +2,11 @@ package co.fleetsec.vapp.web;
 
 import co.fleetsec.vapp.domain.Driver;
 import co.fleetsec.vapp.domain.Trip;
+import co.fleetsec.vapp.dto.DriverPatchDto;
+import co.fleetsec.vapp.dto.DriverResponse;
 import co.fleetsec.vapp.repository.DriverRepository;
 import co.fleetsec.vapp.repository.TripRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import co.fleetsec.vapp.security.AuthenticatedUser;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -12,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,7 +45,6 @@ public class DriverController {
     private final DriverRepository drivers;
     private final TripRepository trips;
     private final JdbcTemplate jdbc;
-    private final ObjectMapper mapper = new ObjectMapper();
 
     public DriverController(DriverRepository drivers, TripRepository trips, JdbcTemplate jdbc) {
         this.drivers = drivers;
@@ -73,43 +75,48 @@ public class DriverController {
     }
 
     /**
-     * Actualización parcial de un conductor.
+     * Actualización parcial de un conductor — <b>V-05 remediado</b>.
      *
-     * <p>V05: se vincula el body completo sobre la entidad persistida vía
-     * {@link ObjectMapper#updateValue}, incluidos campos sensibles como {@code role} y
-     * {@code password} que no deberían ser editables por el propio conductor.
+     * <p>Vincula solo campos de {@link DriverPatchDto} (allowlist: phone/email); {@code role}
+     * y {@code password} no son asignables. Verifica ownership (un conductor solo edita su
+     * propio registro; admin puede editar cualquiera) → 403 si no autorizado. Responde un
+     * {@link DriverResponse} sin el password.
      */
     @PatchMapping("/{id}")
-    public ResponseEntity<?> patch(@PathVariable Long id, @RequestBody Map<String, Object> updates) {
+    public ResponseEntity<?> patch(@PathVariable Long id,
+                                   @RequestBody DriverPatchDto body,
+                                   @AuthenticationPrincipal AuthenticatedUser user) {
         Driver driver = drivers.findById(id).orElse(null);
         if (driver == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Conductor no encontrado"));
         }
-
-        try {
-            // ── V05 · Mass Assignment ───────────────────────────────────────────
-            // updateValue mergea TODAS las claves del body sobre la entidad, sin allowlist.
-            Driver merged = mapper.updateValue(driver, updates);
-            Driver saved = drivers.save(merged);
-
-            // V08: se registra el cambio con PII y el nuevo rol en claro.
-            log.info("Conductor actualizado. id={} cedula={} email={} nuevoRole={}",
-                    saved.getId(), saved.getCedula(), saved.getEmail(), saved.getRole());
-
-            return ResponseEntity.ok(saved);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Body inválido: " + e.getMessage()));
+        if (!user.isAdmin() && !id.equals(user.driverId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "No autorizado"));
         }
+
+        // Allowlist: solo se aplican los campos permitidos; role/password quedan intactos.
+        if (body.phone() != null) {
+            driver.setPhone(body.phone());
+        }
+        if (body.email() != null) {
+            driver.setEmail(body.email());
+        }
+        Driver saved = drivers.save(driver);
+        log.info("Conductor actualizado. id={}", saved.getId());
+        return ResponseEntity.ok(DriverResponse.from(saved));
     }
 
     /**
-     * Viajes de un conductor.
+     * Viajes de un conductor — <b>V-09 remediado</b>.
      *
-     * <p>V09 · IDOR: recibe {@code id} por path y devuelve sus viajes sin comprobar que el
-     * solicitante sea el dueño ni un admin. Cambiar el id expone viajes de otros conductores.
+     * <p>Verifica ownership: un conductor solo ve sus propios viajes; admin ve todos.
+     * Un conductor pidiendo los viajes de otro recibe <b>403</b> (autenticado pero no autorizado).
      */
     @GetMapping("/{id}/trips")
-    public ResponseEntity<?> trips(@PathVariable Long id) {
+    public ResponseEntity<?> trips(@PathVariable Long id, @AuthenticationPrincipal AuthenticatedUser user) {
+        if (!user.isAdmin() && !id.equals(user.driverId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "No autorizado"));
+        }
         List<Trip> result = trips.findByDriverId(id);
         log.info("Consulta de viajes. driverId={} totalViajes={}", id, result.size());
         return ResponseEntity.ok(result);
