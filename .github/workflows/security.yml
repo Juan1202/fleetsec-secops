@@ -60,6 +60,35 @@ jobs:
           # En PR valida base..head; en push a main valida el rango del push.
           failOnWarnings: false
 
+  # ── Tests (JUnit) ────────────────────────────────────────────────────────────
+  # Ejecuta la suite de tests. Es el mecanismo de validación de las remediaciones
+  # (test dual, FSEC-17): sin este stage, la evidencia de remediación no corre en CI.
+  test:
+    name: Tests (JUnit)
+    runs-on: ubuntu-latest
+    # Hereda top-level (contents:read).
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21 (+ cache Maven)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run tests
+        working-directory: app
+        run: mvn -B test
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: app/target/surefire-reports/
+
   # ── Stage 2 · SAST ──────────────────────────────────────────────────────────
   sast:
     name: SAST (Semgrep)
@@ -461,7 +490,7 @@ jobs:
   security-gate:
     name: Security Gate
     runs-on: ubuntu-latest
-    needs: [sast, sca, container, iac, dast, sbom, secrets, commitlint]
+    needs: [sast, sca, container, iac, dast, sbom, secrets, commitlint, test]
     if: always()
     steps:
       - name: Agregar resultados de los stages
@@ -475,10 +504,12 @@ jobs:
             DAST       "${{ needs.dast.result }}" \
             SBOM       "${{ needs.sbom.result }}" \
             Secrets    "${{ needs.secrets.result }}" \
-            commitlint "${{ needs.commitlint.result }}"
+            commitlint "${{ needs.commitlint.result }}" \
+            Tests      "${{ needs.test.result }}"
 
           failed=""
           for r in \
+            "Tests:${{ needs.test.result }}" \
             "SAST:${{ needs.sast.result }}" \
             "SCA:${{ needs.sca.result }}" \
             "Container:${{ needs.container.result }}" \
