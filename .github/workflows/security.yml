@@ -402,6 +402,11 @@ jobs:
           cache-to: type=gha,scope=vapp-image,mode=max
 
       - name: Levantar la app y esperar health
+        # Los secrets se pasan por entorno (referenciados por NOMBRE, nunca por valor);
+        # el compose los exige con ${VAR:?required} → fail-fast si faltan (V-10).
+        env:
+          APP_JWT_SECRET: ${{ secrets.APP_JWT_SECRET }}
+          APP_ADMIN_PASSWORD: ${{ secrets.APP_ADMIN_PASSWORD }}
         run: |
           docker compose -f app/docker-compose.yml up -d --no-build
           for i in $(seq 1 40); do
@@ -425,8 +430,8 @@ jobs:
           fi
           echo "token=$token" >> "$GITHUB_OUTPUT"
         env:
-          # Credencial sintética de V10 (ya pública en application.yml).
-          ADMIN_PWD: FleetS3c@dm1n-2026!
+          # Credencial de admin desde repo secret (V-10 remediado): por NOMBRE, nunca literal.
+          ADMIN_PWD: ${{ secrets.APP_ADMIN_PASSWORD }}
 
       - name: ZAP scan autenticado (api-scan en PR, full-scan en main)
         continue-on-error: true

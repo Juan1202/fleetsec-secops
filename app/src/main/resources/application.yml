@@ -1,11 +1,9 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # FleetSec Vulnerable App — configuración
 #
-# ⚠️  V10 · Hardcoded Credentials (CWE-798) — INTENCIONAL
-#     app.jwt.secret y app.admin.password están hardcoded a propósito. El pipeline
-#     (FSEC-13) debe detectarlos con gitleaks/Semgrep como hallazgo esperado. La
-#     remediación del Sprint 2 los migra a variables de entorno / secret manager.
-#     NO agregar este archivo al allowlist de gitleaks: debe seguir siendo detectable.
+# V-10 REMEDIADO (FSEC-17): los secretos (app.jwt.secret, app.admin.password) se
+# leen de variables de entorno, sin literales en el repo. Provisión: .env local
+# (gitignored) / repo secrets en CI / secret manager en prod (Sprint 3). Ver ADR-010.
 # ──────────────────────────────────────────────────────────────────────────────
 
 server:
@@ -36,13 +34,14 @@ springdoc:
 
 # ── Config de la app ──────────────────────────────────────────────────────────
 app:
-  # V10 · secreto de firma JWT hardcoded
+  # V-10 remediado: secretos externalizados a variables de entorno.
+  # Sin default en jwt.secret / admin.password → si faltan, el contexto NO levanta
+  # (fail-fast, no default silencioso). Ver .env.example y ADR-010.
   jwt:
-    secret: "S3cr3tK3y-FleetSec-2026-Pr0d-DoNotShare-9f83b1c0a7e24d56"
-  # V10 · credenciales de admin hardcoded
+    secret: ${APP_JWT_SECRET}
   admin:
-    username: "admin"
-    password: "FleetS3c@dm1n-2026!"
+    username: ${APP_ADMIN_USERNAME:admin}
+    password: ${APP_ADMIN_PASSWORD}
   # Directorio base de reportes (V06). En contenedor: /app/reports.
   reports:
     dir: "reports"
