@@ -82,6 +82,10 @@ public class DriverController {
      * propio registro; admin puede editar cualquiera) → 403 si no autorizado. Responde un
      * {@link DriverResponse} sin el password.
      */
+    // Falso positivo de la custom rule tras V-05: la authz de ownership es por check
+    // explícito (abajo), no @PreAuthorize. Verificado por EnforcementRemediationTest.
+    // Ver vapt/findings/V-05.md.
+    // nosemgrep: fleetsec-missing-authz-on-pathvariable-endpoint
     @PatchMapping("/{id}")
     public ResponseEntity<?> patch(@PathVariable Long id,
                                    @RequestBody DriverPatchDto body,
@@ -112,6 +116,10 @@ public class DriverController {
      * <p>Verifica ownership: un conductor solo ve sus propios viajes; admin ve todos.
      * Un conductor pidiendo los viajes de otro recibe <b>403</b> (autenticado pero no autorizado).
      */
+    // Falso positivo de la custom rule tras V-09: la authz de ownership es por check
+    // explícito (abajo), no @PreAuthorize. Verificado por EnforcementRemediationTest.
+    // Ver vapt/findings/V-09.md.
+    // nosemgrep: fleetsec-missing-authz-on-pathvariable-endpoint
     @GetMapping("/{id}/trips")
     public ResponseEntity<?> trips(@PathVariable Long id, @AuthenticationPrincipal AuthenticatedUser user) {
         if (!user.isAdmin() && !id.equals(user.driverId())) {
