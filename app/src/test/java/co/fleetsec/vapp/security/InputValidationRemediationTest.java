@@ -106,4 +106,29 @@ class InputValidationRemediationTest {
                         .header("Authorization", driver2()))
                 .andExpect(status().isOk());
     }
+
+    // ── V-07 · Rate limiting (IPs distintas por test para aislar el limiter singleton) ──
+    @Test
+    @DisplayName("V-07 rechaza: superar el cupo (5/min) desde una IP → el 6º intento → 429")
+    void v07_bruteForce_isRateLimited() throws Exception {
+        String badLogin = "{\"username\":\"attacker\",\"password\":\"wrong\"}";
+        for (int i = 0; i < 5; i++) {
+            mvc.perform(post("/api/auth/login").with(r -> { r.setRemoteAddr("9.9.9.9"); return r; })
+                            .contentType(MediaType.APPLICATION_JSON).content(badLogin))
+                    .andExpect(status().isUnauthorized());
+        }
+        mvc.perform(post("/api/auth/login").with(r -> { r.setRemoteAddr("9.9.9.9"); return r; })
+                        .contentType(MediaType.APPLICATION_JSON).content(badLogin))
+                .andExpect(status().isTooManyRequests());
+    }
+
+    @Test
+    @DisplayName("V-07 legítimo: un login válido desde otra IP dentro del cupo → 200 con token")
+    void v07_legitimateLogin_isAllowed() throws Exception {
+        mvc.perform(post("/api/auth/login").with(r -> { r.setRemoteAddr("8.8.4.4"); return r; })
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"admin\",\"password\":\"test-admin-pass\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isNotEmpty());
+    }
 }

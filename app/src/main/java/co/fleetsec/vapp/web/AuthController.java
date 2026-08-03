@@ -4,6 +4,8 @@ import co.fleetsec.vapp.domain.Driver;
 import co.fleetsec.vapp.dto.LoginRequest;
 import co.fleetsec.vapp.repository.DriverRepository;
 import co.fleetsec.vapp.security.JwtService;
+import co.fleetsec.vapp.security.LoginRateLimiter;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,7 +23,9 @@ import org.springframework.web.bind.annotation.RestController;
  * post-remediación era redundante (el filtro JWT valida el token en cada request
  * protegido) y ser un oráculo de tokens es superficie de ataque innecesaria.
  *
- * <p>V-07 (rate limiting) se remedia en la Fase 3.
+ * <p><b>V-07 · Rate limiting (CWE-307) — REMEDIADO:</b> {@code POST /api/auth/login} pasa por
+ * {@link LoginRateLimiter} (ventana deslizante por IP) antes de validar credenciales; superar el
+ * cupo devuelve 429.
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -29,15 +33,18 @@ public class AuthController {
 
     private final DriverRepository drivers;
     private final JwtService jwt;
+    private final LoginRateLimiter rateLimiter;
     private final String adminUser;
     private final String adminPassword;
 
     public AuthController(DriverRepository drivers,
                           JwtService jwt,
+                          LoginRateLimiter rateLimiter,
                           @Value("${app.admin.username}") String adminUser,
                           @Value("${app.admin.password}") String adminPassword) {
         this.drivers = drivers;
         this.jwt = jwt;
+        this.rateLimiter = rateLimiter;
         this.adminUser = adminUser;
         this.adminPassword = adminPassword;
     }
@@ -48,7 +55,15 @@ public class AuthController {
      * para las verificaciones de ownership (V-05, V-09).
      */
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest req) {
+    public ResponseEntity<?> login(@RequestBody LoginRequest req, HttpServletRequest request) {
+        // ── V-07 remediado · rate limiting por IP ───────────────────────────────
+        // Se verifica ANTES de validar credenciales: frena el fuerza-bruta sin revelar
+        // si el usuario existe. Supera el cupo → 429 Too Many Requests.
+        if (!rateLimiter.tryAcquire(request.getRemoteAddr())) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(Map.of("error", "Demasiados intentos. Reintente más tarde."));
+        }
+
         if (adminUser.equals(req.username()) && adminPassword.equals(req.password())) {
             return ResponseEntity.ok(Map.of(
                     "token", jwt.generateToken(adminUser, "ADMIN", null),

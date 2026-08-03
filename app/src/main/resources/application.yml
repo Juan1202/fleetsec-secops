@@ -45,6 +45,11 @@ app:
   # Directorio base de reportes (V06). En contenedor: /app/reports.
   reports:
     dir: "reports"
+  # V-07 remediado: rate limiting de login (ventana deslizante por IP).
+  ratelimit:
+    login:
+      max-attempts: 5
+      window-seconds: 60
 
 logging:
   level:
