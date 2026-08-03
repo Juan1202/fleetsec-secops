@@ -27,8 +27,8 @@ import org.springframework.web.bind.annotation.RestController;
  * Conductores de la flota — <b>intencionalmente vulnerable</b>.
  *
  * <ul>
- *   <li><b>V01 · SQL Injection (CWE-89):</b> {@code GET /api/drivers/search?q=} concatena el
- *       parámetro directamente en la query vía {@link JdbcTemplate}.</li>
+ *   <li><b>V01 · SQL Injection (CWE-89) — REMEDIADO:</b> {@code GET /api/drivers/search?q=} usa
+ *       una query parametrizada; el input viaja como parámetro LIKE, no concatenado en el SQL.</li>
  *   <li><b>V05 · Mass Assignment (CWE-915):</b> {@code PATCH /api/drivers/{id}} vincula el body
  *       completo sobre la entidad, permitiendo setear {@code role=ADMIN}.</li>
  *   <li><b>V08 · Logging de PII (CWE-359 / Ley 1581):</b> se registran cédula/email/teléfono en
@@ -41,6 +41,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class DriverController {
 
     private static final Logger log = LoggerFactory.getLogger(DriverController.class);
+
+    // Query estática y parametrizada (V-01): el input va en los parámetros LIKE, no en el SQL.
+    private static final String DRIVER_SEARCH_SQL =
+            "SELECT id, username, full_name, cedula, email, phone, license_number, role "
+                    + "FROM drivers WHERE full_name LIKE ? OR cedula LIKE ?";
 
     private final DriverRepository drivers;
     private final TripRepository trips;
@@ -60,16 +65,17 @@ public class DriverController {
      */
     @GetMapping("/search")
     public ResponseEntity<?> search(@RequestParam String q) {
-        // ── V01 · SQL Injection ─────────────────────────────────────────────────
-        // Concatenación directa del input del usuario en la sentencia SQL.
-        String sql = "SELECT id, username, full_name, cedula, email, phone, license_number, role "
-                + "FROM drivers WHERE full_name LIKE '%" + q + "%' OR cedula LIKE '%" + q + "%'";
+        // ── V-01 remediado · query parametrizada ────────────────────────────────
+        // El input del usuario viaja como PARÁMETRO enlazado (?), nunca concatenado
+        // en el SQL. Los comodines LIKE se aplican al VALOR del parámetro, así el
+        // payload (p. ej. ' OR '1'='1) se trata como literal de búsqueda, no como SQL.
+        String like = "%" + q + "%";
 
-        List<Map<String, Object>> rows = jdbc.queryForList(sql);
+        List<Map<String, Object>> rows = jdbc.queryForList(DRIVER_SEARCH_SQL, like, like);
 
-        // ── V08 · Logging de PII ────────────────────────────────────────────────
-        // Se vuelca la query (con el payload) y la PII de los resultados sin redactar.
-        log.info("Búsqueda de conductores. query=[{}] resultados={} datos={}", sql, rows.size(), rows);
+        // ── V08 · Logging de PII (se redacta en el commit de V-08) ──────────────
+        log.info("Búsqueda de conductores. query=[{}] resultados={} datos={}",
+                DRIVER_SEARCH_SQL, rows.size(), rows);
 
         return ResponseEntity.ok(rows);
     }
