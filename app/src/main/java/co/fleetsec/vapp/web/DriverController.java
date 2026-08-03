@@ -85,7 +85,7 @@ public class DriverController {
     // Falso positivo de la custom rule tras V-05: la authz de ownership es por check
     // explícito (abajo), no @PreAuthorize. Verificado por EnforcementRemediationTest.
     // Ver vapt/findings/V-05.md.
-    // nosemgrep: fleetsec-missing-authz-on-pathvariable-endpoint
+    // nosemgrep
     @PatchMapping("/{id}")
     public ResponseEntity<?> patch(@PathVariable Long id,
                                    @RequestBody DriverPatchDto body,
@@ -119,7 +119,7 @@ public class DriverController {
     // Falso positivo de la custom rule tras V-09: la authz de ownership es por check
     // explícito (abajo), no @PreAuthorize. Verificado por EnforcementRemediationTest.
     // Ver vapt/findings/V-09.md.
-    // nosemgrep: fleetsec-missing-authz-on-pathvariable-endpoint
+    // nosemgrep
     @GetMapping("/{id}/trips")
     public ResponseEntity<?> trips(@PathVariable Long id, @AuthenticationPrincipal AuthenticatedUser user) {
         if (!user.isAdmin() && !id.equals(user.driverId())) {
