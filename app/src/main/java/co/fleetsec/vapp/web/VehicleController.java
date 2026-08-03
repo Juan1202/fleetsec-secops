@@ -1,6 +1,7 @@
 package co.fleetsec.vapp.web;
 
 import co.fleetsec.vapp.repository.VehicleRepository;
+import co.fleetsec.vapp.security.SsrfGuard;
 import co.fleetsec.vapp.service.XmlParserService;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -23,9 +24,9 @@ import org.springframework.web.bind.annotation.RestController;
  * Vehículos de la flota — <b>intencionalmente vulnerable</b>.
  *
  * <ul>
- *   <li><b>V03 · SSRF (CWE-918):</b> {@code POST /api/vehicles/{id}/webhook} hace una request
- *       server-side a la URL provista sin validar destino → alcanza IMDS (169.254.169.254)
- *       o servicios internos.</li>
+ *   <li><b>V03 · SSRF (CWE-918) — REMEDIADO:</b> {@code POST /api/vehicles/{id}/webhook} valida
+ *       la URL con {@link SsrfGuard} (solo HTTP/S, rechaza IMDS/loopback/privados) antes de la
+ *       request server-side.</li>
  *   <li><b>V04 · XXE (CWE-611):</b> {@code POST /api/vehicles/import} delega en
  *       {@link XmlParserService} que procesa entidades externas.</li>
  * </ul>
@@ -60,9 +61,17 @@ public class VehicleController {
             return ResponseEntity.badRequest().body(Map.of("error", "url requerida"));
         }
 
+        // ── V-03 remediado · validación anti-SSRF ───────────────────────────────
+        // Rechaza esquemas no-HTTP y destinos internos (loopback/privados/IMDS 169.254.169.254)
+        // ANTES de emitir la request server-side.
         try {
-            // ── V03 · SSRF ──────────────────────────────────────────────────────
-            // Sin allowlist de host ni bloqueo de rangos privados/link-local.
+            SsrfGuard.assertAllowed(url);
+        } catch (SsrfGuard.BlockedTargetException e) {
+            log.warn("Webhook rechazado por SSRF guard. vehicleId={} motivo={}", id, e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", "Destino no permitido: " + e.getMessage()));
+        }
+
+        try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .timeout(Duration.ofSeconds(3))

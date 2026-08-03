@@ -1,6 +1,7 @@
 package co.fleetsec.vapp.security;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -54,5 +56,15 @@ class InputValidationRemediationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].username").value("cgomez"));
+    }
+
+    // ── V-03 · SSRF (wiring end-to-end; el dual completo vive en SsrfGuardTest) ───
+    @Test
+    @DisplayName("V-03 rechaza: webhook hacia el IMDS (169.254.169.254) → 400 sin request server-side")
+    void v03_webhookToImds_isRejected() throws Exception {
+        mvc.perform(post("/api/vehicles/1/webhook").header("Authorization", driver2())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"url\":\"http://169.254.169.254/latest/meta-data/iam/\"}"))
+                .andExpect(status().isBadRequest());
     }
 }
