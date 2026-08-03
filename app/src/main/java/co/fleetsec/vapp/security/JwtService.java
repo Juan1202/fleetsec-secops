@@ -33,16 +33,17 @@ public class JwtService {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    /** Identidad extraída de un token. */
-    public record TokenClaims(String sub, String role) {
+    /** Identidad extraída de un token. {@code driverId} es null para el admin de config. */
+    public record TokenClaims(String sub, String role, Long driverId) {
     }
 
     /** Emite un token HS256 firmado con la clave de la app. */
-    public String generateToken(String username, String role) {
+    public String generateToken(String username, String role, Long driverId) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(username)
                 .claim("role", role)
+                .claim("driverId", driverId)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(TTL_SECONDS)))
                 .signWith(key)
@@ -63,7 +64,8 @@ public class JwtService {
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
-            return new TokenClaims(claims.getSubject(), claims.get("role", String.class));
+            Long driverId = claims.get("driverId", Long.class);
+            return new TokenClaims(claims.getSubject(), claims.get("role", String.class), driverId);
         } catch (JwtException | IllegalArgumentException e) {
             throw new IllegalArgumentException("Token inválido", e);
         }

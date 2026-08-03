@@ -70,6 +70,22 @@ El pipeline es un **detector honesto**: sobre la app vulnerable sale **rojo** mo
 - Toda supresión usa el formato canónico de 5 campos (validado por [`scripts/audit-suppressions.sh`](../scripts/audit-suppressions.sh)).
 - `permissions` mínimo explícito; `issues:write` solo en el job `dast` (auto-issue MEDIUM) — menor privilegio.
 
+## Falsos positivos conocidos
+
+Un FP **documentado** no es una supresión: el finding queda **visible en el SARIF** con su explicación (más honesto que ocultarlo). Solo se registran aquí los que son **no bloqueantes** (el gate SAST falla únicamente en `ERROR`).
+
+### `fleetsec-missing-authz-on-pathvariable-endpoint` (WARNING) en `DriverController` (V-05, V-09)
+
+| Campo | Detalle |
+|---|---|
+| **Regla** | Custom rule propia (`pipeline/semgrep/`), severidad `WARNING`. |
+| **Qué marca** | `@PatchMapping`/`@GetMapping` con `@PathVariable` que **no** llevan `@PreAuthorize`. |
+| **Por qué es FP** | Tras remediar V-05/V-09, la authz de ownership se implementa con un **check explícito** (`if (!user.isAdmin() && !id.equals(user.driverId())) → 403`), no con la anotación. La regla busca `@PreAuthorize` y no reconoce este patrón válido. |
+| **Evidencia de la remediación** | **Test dual**, no la ausencia del WARNING: `EnforcementRemediationTest.v05_roleAndPasswordNotAssignable`, `v09_otherDriverTrips_isForbidden` (403), `v09_ownTrips_isOk` (200). |
+| **Por qué NO se suprime** | El `nosemgrep` inline **no suprime de forma fiable** en el config-set del pipeline: con `p/secrets` cargado en el escaneo multi-config, Semgrep no aplica el `nosemgrep` a la custom rule (mismo `ruleId`, comportamiento config-dependiente — quirk verificado en Semgrep 1.171.0). |
+| **Por qué NO se debilita la regla** | Agregar un `pattern-not` del check explícito reconocería **presencia**, no **corrección**: un check de ownership roto (ej. `id == id`) matchearía y **evadiría la detección** — el falso-negativo-peligroso que la regla existe para prevenir. |
+| **Decisión** | Aceptar como **FP documentado, no bloqueante**. La regla se mantiene **deliberadamente estricta**: prefiere marcar un patrón válido no-estándar (FP visible) a perder un check **ausente** (FN peligroso). Eso es la regla funcionando como se diseñó, no un defecto. |
+
 ## Retest local
 
 Cada herramienta corre vía su imagen Docker oficial (ver comandos en el workflow). El SPEC documenta el detalle por stage.

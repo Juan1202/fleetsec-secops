@@ -26,6 +26,10 @@
     <properties>
         <java.version>21</java.version>
         <springdoc.version>2.6.0</springdoc.version>
+        <!-- Override sobre la versión gestionada por Boot 3.3.5 (6.3.4) para remediar
+             CVE-2026-22732 (CWE-425, escritura de security headers). Fix limpio en la
+             línea 6.x, verificado con los 14 tests. Ver ADR-004 (criterio de triage). -->
+        <spring-security.version>6.5.9</spring-security.version>
     </properties>
 
     <dependencies>
@@ -45,6 +49,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!-- Spring Security: enforcement de autenticación (V-11 remediado, FSEC-17) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
         <!-- OpenAPI / Swagger UI — expone /v3/api-docs para el DAST de ZAP (FSEC-13, cobertura >=80%) -->
@@ -92,6 +102,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
