@@ -67,4 +67,26 @@ class InputValidationRemediationTest {
                         .content("{\"url\":\"http://169.254.169.254/latest/meta-data/iam/\"}"))
                 .andExpect(status().isBadRequest());
     }
+
+    // ── V-04 · XXE ───────────────────────────────────────────────────────────────
+    @Test
+    @DisplayName("V-04 rechaza: un XML con DOCTYPE/entidad externa → 400 (parser rechaza el DOCTYPE)")
+    void v04_xxePayload_isRejected() throws Exception {
+        String xxe = "<?xml version=\"1.0\"?>"
+                + "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/hostname\">]>"
+                + "<vehicles>&xxe;</vehicles>";
+        mvc.perform(post("/api/vehicles/import").header("Authorization", driver2())
+                        .contentType(MediaType.APPLICATION_XML).content(xxe))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("V-04 legítimo: un XML sin DOCTYPE se parsea correctamente → 200")
+    void v04_cleanXml_isParsed() throws Exception {
+        String xml = "<?xml version=\"1.0\"?><vehicles><vehicle>ABC123</vehicle></vehicles>";
+        mvc.perform(post("/api/vehicles/import").header("Authorization", driver2())
+                        .contentType(MediaType.APPLICATION_XML).content(xml))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.parsed").value("ABC123"));
+    }
 }
