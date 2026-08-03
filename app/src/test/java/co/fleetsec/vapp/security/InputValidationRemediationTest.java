@@ -51,12 +51,13 @@ class InputValidationRemediationTest {
     }
 
     @Test
-    @DisplayName("V-01 legítimo: una búsqueda real por apellido devuelve el conductor")
+    @DisplayName("V-01 legítimo: una búsqueda real por nombre devuelve el conductor")
     void v01_legitimateSearch_returnsMatch() throws Exception {
-        mvc.perform(get("/api/drivers/search").param("q", "Gómez").header("Authorization", driver2()))
+        // H2 devuelve las claves de columna en MAYÚSCULA (USERNAME).
+        mvc.perform(get("/api/drivers/search").param("q", "Carlos").header("Authorization", driver2()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].username").value("cgomez"));
+                .andExpect(jsonPath("$[0].USERNAME").value("cgomez"));
     }
 
     // ── V-03 · SSRF (wiring end-to-end; el dual completo vive en SsrfGuardTest) ───
