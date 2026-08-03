@@ -1,5 +1,6 @@
 package co.fleetsec.vapp.security;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -14,8 +15,11 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 /**
- * Test duales de remediación de V-10 (secrets externalizados) y V-02 (JWT alg:none).
- * Perfil {@code test}: los secretos vienen de application-test.yml.
+ * Test duales de V-10 (secrets externalizados) y V-02 (JWT alg:none).
+ *
+ * <p>Tras la Fase 2, el endpoint {@code /api/auth/validate} fue eliminado: la validez del
+ * token se prueba en el <b>path de enforcement</b> (un endpoint protegido) — más fuerte que
+ * el oráculo anterior.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -40,31 +44,24 @@ class AuthSecurityRemediationTest {
                 .andExpect(jsonPath("$.token").isNotEmpty());
     }
 
-    // ── V-02 · rechaza el payload EXACTO de la PoC (V-02.md) ────────────────────
+    // ── V-02 · rechaza el payload EXACTO de la PoC (V-02.md) en un endpoint protegido ──
     @Test
-    @DisplayName("V-02 rechaza: el token alg:none exacto de V-02.md → 401 valid:false")
+    @DisplayName("V-02 rechaza: el token alg:none exacto de V-02.md → 401 en endpoint protegido")
     void v02_algNoneTokenFromPoc_isRejected() throws Exception {
-        // header {"alg":"none","typ":"JWT"} . payload {"sub":"admin","role":"ADMIN"} . (sin firma)
         String algNone = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0"
                 + ".eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJBRE1JTiJ9.";
-        mvc.perform(post("/api/auth/validate")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"token\":\"" + algNone + "\"}"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.valid").value(false));
+        mvc.perform(get("/api/drivers/search").param("q", "x")
+                        .header("Authorization", "Bearer " + algNone))
+                .andExpect(status().isUnauthorized());
     }
 
-    // ── V-02 · legítimo OK (el fix no rompe el login legítimo) ──────────────────
+    // ── V-02 · legítimo OK: un JWT HS256 válido autentica en un endpoint protegido ──
     @Test
-    @DisplayName("V-02 legítimo: un JWT HS256 válido emitido por la app → valid:true")
+    @DisplayName("V-02 legítimo: un JWT HS256 válido → 200 en endpoint protegido")
     void v02_validHs256Token_isAccepted() throws Exception {
-        String token = jwt.generateToken("admin", "ADMIN");
-        mvc.perform(post("/api/auth/validate")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"token\":\"" + token + "\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.valid").value(true))
-                .andExpect(jsonPath("$.sub").value("admin"))
-                .andExpect(jsonPath("$.role").value("ADMIN"));
+        String token = jwt.generateToken("admin", "ADMIN", null);
+        mvc.perform(get("/api/drivers/search").param("q", "x")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk());
     }
 }
