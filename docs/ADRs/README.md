@@ -11,11 +11,10 @@
 | [ADR-002](ADR-002-public-repo-for-branch-protection.md) | Repositorio público para habilitar branch protection | 0 | ✅ Accepted |
 | [ADR-003](ADR-003-vulnerable-app-stack.md) | Stack de la app vulnerable: Custom Spring Boot Minimal | 1 | ✅ Accepted |
 | [ADR-004](ADR-004-pipeline-gate-strategy.md) | Estrategia del gate del pipeline: híbrido rojo/verde + risk-acceptance CVEs deps | 1 | ✅ Accepted |
-| ADR-005 | KMS CMK per service vs una sola CMK | 3 | ⏳ Proposed |
-| ADR-006 | Estrategia de rate limiting: Bucket4j vs API GW vs WAF | 1 | ⏳ Proposed |
-| ADR-007 | Formato de supresiones y proceso de revisión periódica | 1 | ⏳ Proposed |
-| ADR-008 | Target backend Sigma: portable vs Splunk-specific | 4 | ⏳ Proposed |
 | [ADR-009](ADR-009-relaxed-branch-protection-for-solo-context.md) | Branch protection relajada para contexto de prueba individual | 0 | ✅ Accepted |
+| [ADR-010](ADR-010-jjwt-over-manual-jwt.md) | Migración de JWT manual a librería jjwt | 2 | ✅ Accepted |
+
+> **Nota de numeración:** los ADRs se numeran **cuando se escriben**, no se reservan. Los números 005-008 son un hueco histórico de reservas eliminadas (temas KMS/rate-limit/supresiones/Sigma que se numerarán al escribirse — 011, 012...). Ver Convenciones.
 
 ## Template
 
@@ -23,7 +22,7 @@ Ver [`TEMPLATE.md`](TEMPLATE.md) para crear un nuevo ADR.
 
 ## Convenciones
 
-- **Numeración secuencial** sin saltos (ADR-001, ADR-002, ...)
+- **Numeración al escribir, sin reservas.** Un ADR toma el siguiente número libre **cuando se crea el archivo**; no se reservan números para temas futuros (las reservas fueron la causa de colisiones previas). Los huecos son aceptables.
 - **Filename**: `ADR-NNN-titulo-en-kebab-case.md`
 - **Status posibles**: `Proposed` · `Accepted` · `Rejected` · `Deprecated` · `Superseded by ADR-NNN`
 - **Una página máximo** — si necesita más, dividir en sub-ADRs
