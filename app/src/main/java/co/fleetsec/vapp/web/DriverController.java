@@ -82,10 +82,12 @@ public class DriverController {
      * propio registro; admin puede editar cualquiera) → 403 si no autorizado. Responde un
      * {@link DriverResponse} sin el password.
      */
-    // Falso positivo de la custom rule tras V-05: la authz de ownership es por check
-    // explícito (abajo), no @PreAuthorize. Verificado por EnforcementRemediationTest.
-    // Ver vapt/findings/V-05.md.
-    // nosemgrep
+    // FP CONOCIDO de la custom rule fleetsec-missing-authz: la regla busca @PreAuthorize
+    // y NO reconoce el check de ownership EXPLÍCITO (abajo). La authz está implementada y
+    // probada por EnforcementRemediationTest (v05_roleAndPasswordNotAssignable). La regla se
+    // mantiene deliberadamente estricta (mejor marcar un patrón válido que perder un check
+    // ausente → falso negativo peligroso). No se suprime con nosemgrep: quirk Semgrep+p/secrets.
+    // Ver pipeline/README § "Falsos positivos conocidos" y vapt/findings/V-05.md.
     @PatchMapping("/{id}")
     public ResponseEntity<?> patch(@PathVariable Long id,
                                    @RequestBody DriverPatchDto body,
@@ -116,10 +118,11 @@ public class DriverController {
      * <p>Verifica ownership: un conductor solo ve sus propios viajes; admin ve todos.
      * Un conductor pidiendo los viajes de otro recibe <b>403</b> (autenticado pero no autorizado).
      */
-    // Falso positivo de la custom rule tras V-09: la authz de ownership es por check
-    // explícito (abajo), no @PreAuthorize. Verificado por EnforcementRemediationTest.
-    // Ver vapt/findings/V-09.md.
-    // nosemgrep
+    // FP CONOCIDO de la custom rule fleetsec-missing-authz (idéntico a patch()): la regla
+    // busca @PreAuthorize y NO reconoce el check de ownership EXPLÍCITO (abajo). Authz
+    // probada por EnforcementRemediationTest (v09_otherDriverTrips_isForbidden). No se
+    // suprime con nosemgrep: quirk Semgrep+p/secrets. Ver pipeline/README § "Falsos
+    // positivos conocidos" y vapt/findings/V-09.md.
     @GetMapping("/{id}/trips")
     public ResponseEntity<?> trips(@PathVariable Long id, @AuthenticationPrincipal AuthenticatedUser user) {
         if (!user.isAdmin() && !id.equals(user.driverId())) {
