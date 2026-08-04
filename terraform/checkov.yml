@@ -1,0 +1,64 @@
+# checkov.yml · FleetSec · módulo security-baseline
+# Supresiones de Checkov con formato canónico de 5 campos (validado por
+# scripts/audit-suppressions.sh). Cada skip corresponde a un patrón LEGÍTIMO donde el check
+# es un falso positivo o no aplica a un baseline single-account/single-region. Alcance: la
+# carpeta terraform/ solo contiene este módulo, por eso los skips globales son acotados.
+# Ver terraform/modules/security-baseline/README.md § "Supresiones de Checkov".
+
+# Rule: CKV_AWS_356
+# Reason: Resource="*" es correcto e inherente en las politicas de KMS key (auto-referencia a la propia clave), en el permission boundary (define el techo sobre TODOS los recursos) y en las APIs de metricas de CloudWatch (PutMetricData/GetMetricData no soportan permisos a nivel de recurso). No es un wildcard sobre multiples recursos restringibles.
+# Date: 2026-08-03
+# Responsible: juan.andres@fleetsec.co
+# Review-by: 2026-10-31
+
+# Rule: CKV_AWS_111
+# Reason: Mismo patron que CKV_AWS_356: la escritura sin constraint aplica a la key policy de KMS (self-ref), al permission boundary (envelope de maximos) y a cloudwatch:PutMetricData/logs (sin resource-level). Son patrones AWS-documentados, no wildcards indebidos.
+# Date: 2026-08-03
+# Responsible: juan.andres@fleetsec.co
+# Review-by: 2026-10-31
+
+# Rule: CKV_AWS_109
+# Reason: Las politicas de KMS key requieren kms:* con Resource="*" en el statement de root admin (patron AWS obligatorio para no perder el control de la clave). No es permissions-management sin constraint sobre recursos arbitrarios.
+# Date: 2026-08-03
+# Responsible: juan.andres@fleetsec.co
+# Review-by: 2026-10-31
+
+# Rule: CKV_AWS_108
+# Reason: El permission boundary lista s3:GetObject/secretsmanager:GetSecretValue con Resource="*" porque define el TECHO de permisos (envelope), no un grant efectivo; los grants reales (app_task) estan acotados por ARN. El boundary ademas NIEGA explicitamente la escalada.
+# Date: 2026-08-03
+# Responsible: juan.andres@fleetsec.co
+# Review-by: 2026-10-31
+
+# Rule: CKV_AWS_144
+# Reason: Cross-region replication es especifico del ambiente y con costo; el baseline es single-region (us-east-1). La durabilidad/inmutabilidad de los logs se cubre con Object Lock COMPLIANCE (365d) + versioning, no con CRR.
+# Date: 2026-08-03
+# Responsible: juan.andres@fleetsec.co
+# Review-by: 2026-10-31
+
+# Rule: CKV2_AWS_62
+# Reason: Las event notifications de S3 requieren un consumidor (SNS/SQS/Lambda) especifico del ambiente; no son un control del baseline. La trazabilidad de acceso a los datos se cubre con CloudTrail data events sobre el bucket de PII + GuardDuty S3 protection.
+# Date: 2026-08-03
+# Responsible: juan.andres@fleetsec.co
+# Review-by: 2026-10-31
+
+# Rule: CKV2_AWS_3
+# Reason: Falso positivo con el provider AWS 5.x: el detector tiene enable=true y las fuentes de datos se habilitan via aws_guardduty_detector_feature (S3/EBS/RDS), que el check (esquema viejo con bloque datasources) no reconoce. GuardDuty ESTA habilitado.
+# Date: 2026-08-03
+# Responsible: juan.andres@fleetsec.co
+# Review-by: 2026-10-31
+
+# Rule: CKV_AWS_252
+# Reason: La deteccion en tiempo real se implementa con 4 metric filters + alarmas sobre eventos de seguridad reales (root login, AttachUserPolicy, cambios de SG, API no autorizadas), superior a la notificacion SNS por-archivo de CloudTrail (ruidosa). El trail entrega a CloudWatch Logs donde viven los filtros.
+# Date: 2026-08-03
+# Responsible: juan.andres@fleetsec.co
+# Review-by: 2026-10-31
+
+skip-check:
+  - CKV_AWS_356
+  - CKV_AWS_111
+  - CKV_AWS_109
+  - CKV_AWS_108
+  - CKV_AWS_144
+  - CKV2_AWS_62
+  - CKV2_AWS_3
+  - CKV_AWS_252

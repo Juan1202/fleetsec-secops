@@ -59,6 +59,13 @@ regexes = [
   '''sk_test_[a-zA-Z0-9]{24}''',
   '''AKIAIOSFODNN7EXAMPLE''',
   '''wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY''',
+
+  # Rule: hashicorp-tf-password
+  # Reason: IAM_PASSWORD_POLICY es el source_identifier publico de una regla managed de AWS Config en terraform/modules/security-baseline/config.tf; la rule hashicorp-tf-password lo matchea por el token "password" en la clave del map, pero es un nombre de recurso AWS fijo, no un secreto. No cegar el resto de los .tf.
+  # Date: 2026-08-03
+  # Responsible: juan.andres@fleetsec.co
+  # Review-by: 2026-10-31
+  '''IAM_PASSWORD_POLICY''',
 ]
 
 # ──────────────────────────────────────────────────────────────────────────────

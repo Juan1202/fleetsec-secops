@@ -27,3 +27,11 @@ CVE-2026-43515
 CVE-2026-54512
 CVE-2026-54513
 GHSA-r7wm-3cxj-wff9
+
+# ── Trivy config (IaC) · módulo terraform/security-baseline ──
+# Rule: AWS-0104
+# Reason: Egreso HTTPS (443) del tier app a internet via NAT — requerido para APIs externas de socios y actualizaciones de SO/paquetes. Es egreso (sin exposicion inbound), ruteado por NAT y monitoreado por VPC Flow Logs. Endpoints VPC por cada dependencia externa son especificos del ambiente.
+# Date: 2026-08-03
+# Responsible: juan.andres@fleetsec.co
+# Review-by: 2026-10-31
+AWS-0104
