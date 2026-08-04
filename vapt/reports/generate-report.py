@@ -356,11 +356,76 @@ for vid in [f"V-{i:02d}" for i in range(1, 12)]:
     para("Estado: Fixed · commit %s (FSEC-17)." % d["commit"], size=9, italic=True, color=GREEN, space_after=10)
 doc.add_page_break()
 
-# ============================ 6. MAPEO DE CUMPLIMIENTO ============================
-doc.add_heading("6. Mapeo de cumplimiento", level=1)
+# ============================ 6. HALLAZGOS BONUS ============================
+doc.add_heading("6. Hallazgos bonus (FSEC-19)", level=1)
+para("Además de los 11 vectores del alcance principal, se documentan hallazgos adicionales con "
+     "evidencia propia. El entregable exige ≥2 bonus: se cubren con B-01 (security headers) y V-11 "
+     "(ausencia de enforcement de autenticación, que conserva su prefijo V por su rol en el análisis "
+     "de interacción). Un tercer candidato —B-02, CORS— se evaluó y no aplica.", space_after=8)
+
+doc.add_heading("6.1 B-01 · Ausencia de HTTP security headers", level=2)
+_bmt = doc.add_table(rows=1, cols=4)
+_bmt.style = "Table Grid"
+_bh = ["Severidad", "CVSS v3.1", "CWE", "OWASP 2021"]
+_bv = ["LOW", "3.1", "CWE-693", "A05:2021 Security Misconfiguration"]
+_bc = _bmt.rows[0].cells
+for i in range(4):
+    set_cell(_bc[i], _bh[i], bold=True, white=True, size=9)
+    shade(_bc[i], "1F3A5F")
+_br = _bmt.add_row().cells
+for i in range(4):
+    set_cell(_br[i], _bv[i], size=9)
+_bvec = doc.add_paragraph()
+_bvr = _bvec.add_run("Vector: CVSS:3.1/AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N")
+_bvr.font.size = Pt(8.5)
+_bvr.italic = True
+_bvr.font.color.rgb = GREY
+_bvec.paragraph_format.space_after = Pt(4)
+para("Descripción. En la baseline la app no emitía ningún security header (X-Frame-Options, CSP, "
+     "HSTS, X-Content-Type-Options, Referrer/Permissions-Policy) — falla de mecanismo de protección "
+     "(CWE-693), sin explotación directa pero eliminando una capa de defensa en profundidad.",
+     size=10, space_after=2)
+para("Evidencia (DAST del pipeline). ZAP reportaba todos los headers ausentes en la baseline; "
+     "post-remediación quedan 2 hallazgos Low residuales (X-Content-Type-Options y "
+     "Cross-Origin-Resource-Policy en respuestas fuera de la cadena de filtros).", size=10, space_after=2)
+para("Impacto. Clickjacking (Swagger UI framable), MIME-sniffing, downgrade sin HSTS y ausencia de "
+     "CSP como amplificador de un XSS futuro. Acotado por ser una API JSON (de ahí LOW).",
+     size=10, space_after=2)
+_bp = doc.add_paragraph()
+_br1 = _bp.add_run("Remediación. ")
+_br1.bold = True
+_br1.font.size = Pt(10)
+_br1.font.color.rgb = GREEN
+_br2 = _bp.add_run("Set completo de headers añadido en SecurityConfig (FSEC-17 PR-C, commit 0927e6e), "
+                   "verificado por test (headers presentes incluso en un 401). Se apoya en la maquinaria "
+                   "de escritura de headers de Spring Security ya parchada del CVE-2026-22732 (override "
+                   "a 6.5.9). Residual no bloqueante: añadir Cross-Origin-Resource-Policy y cubrir las "
+                   "respuestas de error/springdoc con un filtro global.")
+_br2.font.size = Pt(10)
+_bp.paragraph_format.space_after = Pt(2)
+para("Estado: Fixed · commit 0927e6e (FSEC-17 PR-C), con residual Low documentado.",
+     size=9, italic=True, color=GREEN, space_after=10)
+
+doc.add_heading("6.2 V-11 · Ausencia de enforcement de autenticación (hallazgo bonus/raíz)", level=2)
+para("V-11 se cuenta también como hallazgo bonus: es el hallazgo de arquitectura detectado durante "
+     "la evaluación (ningún endpoint exigía autenticación) y el nodo raíz del análisis de interacción "
+     "(§4). Conserva su prefijo V —en lugar de renombrarlo B-XX— porque toda la cadena de remediación "
+     "por fases y las referencias cruzadas lo citan como V-11. Detalle completo en la §5 y la ficha "
+     "V-11 (HIGH, CVSS 8.2, CWE-306, Fixed).", space_after=8)
+
+doc.add_heading("6.3 B-02 · CORS misconfiguration — no aplica", level=2)
+para("Se evaluó una posible política CORS permisiva (CWE-942: origen comodín + credenciales). "
+     "No aplica: la app no invoca .cors(), no usa @CrossOrigin ni define un CorsConfigurationSource, "
+     "por lo que Spring no emite headers Access-Control-Allow-*. Se documenta la no-aplicabilidad con "
+     "la evidencia del grep (ficha B-02) en vez de omitirla.", space_after=8)
+
+doc.add_page_break()
+
+# ============================ 7. MAPEO DE CUMPLIMIENTO ============================
+doc.add_heading("7. Mapeo de cumplimiento", level=1)
 para("Los hallazgos y sus remediaciones se alinean con los marcos aplicables a FleetSec (empresa en "
      "certificación ISO 27001:2022, tratante de datos personales bajo Ley 1581 de 2012).", space_after=8)
-doc.add_heading("6.1 ISO/IEC 27001:2022 — Anexo A", level=2)
+doc.add_heading("7.1 ISO/IEC 27001:2022 — Anexo A", level=2)
 iso = doc.add_table(rows=1, cols=3)
 iso.style = "Table Grid"
 header_row(iso, ["Control Anexo A", "Descripción", "Hallazgos"])
@@ -378,7 +443,7 @@ for c1, c2, c3 in [
     set_cell(r[0], c1, bold=True, size=9)
     set_cell(r[1], c2, size=9)
     set_cell(r[2], c3, size=9)
-doc.add_heading("6.2 CIS Controls v8", level=2)
+doc.add_heading("7.2 CIS Controls v8", level=2)
 cis = doc.add_table(rows=1, cols=3)
 cis.style = "Table Grid"
 header_row(cis, ["Control CIS", "Descripción", "Hallazgos"])
@@ -393,7 +458,7 @@ for c1, c2, c3 in [
     set_cell(r[0], c1, bold=True, size=9)
     set_cell(r[1], c2, size=9)
     set_cell(r[2], c3, size=9)
-doc.add_heading("6.3 Ley 1581 de 2012 (Protección de Datos Personales — Colombia)", level=2)
+doc.add_heading("7.3 Ley 1581 de 2012 (Protección de Datos Personales — Colombia)", level=2)
 para("La plataforma trata datos personales de conductores (cédula, correo, teléfono, licencia) y "
      "datos de geolocalización (recorridos). Los hallazgos con impacto directo son:", space_after=6)
 bullet("acceso anónimo a PII (V-11) y su extracción vía inyección (V-01) vulneran el principio de seguridad (Art. 4, lit. g).", bold_prefix="Confidencialidad: ")
@@ -406,7 +471,7 @@ para("En este ejercicio los datos son de prueba y el entorno es controlado; no h
 doc.add_page_break()
 
 # ============================ 7. CONCLUSIONES ============================
-doc.add_heading("7. Conclusiones y recomendaciones", level=1)
+doc.add_heading("8. Conclusiones y recomendaciones", level=1)
 para("La evaluación identificó 11 vulnerabilidades —7 de severidad alta y 4 media— dominadas por un "
      "hallazgo raíz de arquitectura: la ausencia de autenticación obligatoria. El análisis de "
      "interacción demostró que el orden de remediación era crítico, y la corrección se ejecutó en tres "
