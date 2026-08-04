@@ -55,10 +55,10 @@ graph TB
   class WAF,App2,IMDS2,RDS,CT,GD,IR,IAM2 good;
 ```
 
-## 3. Pipeline DevSecOps (9 stages → Security Gate)
+## 3. Pipeline DevSecOps (10 stages → Security Gate)
 
 Detector honesto: sobre la app vulnerable sale rojo; post-remediación, verde. El `Security Gate`
-es el único *required check* y agrega los 9 stages.
+es el único *required check* y agrega los 10 stages.
 
 ```mermaid
 flowchart LR

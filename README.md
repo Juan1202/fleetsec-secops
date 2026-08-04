@@ -69,7 +69,7 @@ breach con overlay ATT&CK están en [`docs/architecture/`](docs/architecture/).
 ## 📦 Entregables
 
 ### 01 · DevSecOps Pipeline ([`pipeline/`](pipeline/) · [`app/`](app/))
-Pipeline GitHub Actions con **9 stages** → **Security Gate** (único *required check*): Commitlint ·
+Pipeline GitHub Actions con **10 stages** → **Security Gate** (único *required check*): Commitlint ·
 Tests · SAST (Semgrep) · SCA (Trivy) · Container (Trivy) · IaC (Checkov) · DAST (ZAP autenticado) ·
 SBOM (Syft/CycloneDX) · Secrets (gitleaks) · Suppressions Audit. App vulnerable Spring Boot
 (`docker compose up`) con 11 vectores. **Break-glass** ([`docs/break-glass.md`](docs/break-glass.md))
@@ -109,7 +109,7 @@ Diagramas completos (as-is, to-be, pipeline, breach+ATT&CK) en
 
 ```mermaid
 flowchart LR
-  DEV[Developer] -->|PR| CI{{"Security Gate<br/>(9 stages)"}}
+  DEV[Developer] -->|PR| CI{{"Security Gate<br/>(10 stages)"}}
   CI -->|verde| MAIN[main]
   CI -.->|rojo| BG[Break-glass Issue]
   MAIN --> BASE["Terraform security-baseline<br/>IMDSv2 · boundaries · WAF · GuardDuty"]
@@ -176,7 +176,7 @@ quedan como decisión humana: la IA propone, el autor valida y commitea.
 
 ## 🎥 Sustentación
 
-📺 **Video (YouTube unlisted, ≤10 min, cámara visible):** _(link tras grabación)_
+📺 **Video (YouTube unlisted, ≤10 min, cámara visible):** ⬜ _**TODO (FSEC-31):** pegar el link aquí tras la grabación._
 
 ## 📈 Tracking
 
