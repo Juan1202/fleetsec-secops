@@ -1,0 +1,31 @@
+/* ============================================================================
+   SPL (Splunk) · Bulk S3 GetObject exfiltration — IR-2026-001 / regla Sigma 03
+   ----------------------------------------------------------------------------
+   La agregación por volumen NO es gramática Sigma core (es backend-specific,
+   como se documenta en la regla y en el AI Report). Esta es la conversión REAL
+   a SPL de la correlación event_count (>=100 GetObject por principal/bucket/5min).
+   Umbral 100 sembrado del baseline; ajustar por ambiente.
+   ============================================================================ */
+
+/* --- Detección principal: correlación por volumen --- */
+index=aws sourcetype="aws:cloudtrail"
+    eventSource="s3.amazonaws.com"
+    (eventName="GetObject" OR eventName="CopyObject")
+    "requestParameters.bucketName"="prod-drivers"
+| bin _time span=5m
+| stats count AS getobject_count
+        dc("requestParameters.key") AS distinct_objects
+        values(sourceIPAddress) AS src_ips
+        earliest(_time) AS first_seen latest(_time) AS last_seen
+        BY _time, "userIdentity.arn", "requestParameters.bucketName"
+| where getobject_count >= 100
+| eval window="5m", incident="IR-2026-001"
+| sort - getobject_count
+
+/* --- Variante tstats (acelerada, sobre el data model CIM) ---
+| tstats count AS getobject_count
+    FROM datamodel=Cloud_Security.Cloud_Storage
+    WHERE eventName IN ("GetObject","CopyObject") bucketName="prod-drivers"
+    BY _time span=5m, principal, bucketName
+| where getobject_count >= 100
+*/

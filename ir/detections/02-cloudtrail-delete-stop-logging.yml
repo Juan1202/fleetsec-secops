@@ -1,0 +1,41 @@
+title: CloudTrail DeleteTrail / StopLogging Attempt (Anti-Forensics)
+id: 7f3a9c21-4e6b-4a1d-9c2f-1a2b3c4d5e02
+status: stable
+description: |
+  Los adversarios borran o detienen CloudTrail para eliminar la evidencia de su actividad. Es un
+  indicador de alta confianza: no hay razón operativa legítima para borrar un trail de producción.
+  Detecta tanto los intentos exitosos como los fallidos (bloqueados por SCP) — en IR-2026-001 el
+  DeleteTrail (T+01:30) fue bloqueado por la SCP, pero el intento en sí es la señal.
+references:
+  - https://attack.mitre.org/techniques/T1562/008/
+  - https://attack.mitre.org/techniques/T1070/
+  - https://d3fend.mitre.org/technique/d3f:LocalFilePermissions/
+author: Juan Andres Moya
+date: 2026/07/28
+tags:
+  - attack.defense-evasion
+  - attack.t1562.008
+  - attack.t1070
+logsource:
+  product: aws
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: cloudtrail.amazonaws.com
+    eventName:
+      - DeleteTrail
+      - StopLogging
+      - UpdateTrail
+      - PutEventSelectors
+  condition: selection
+falsepositives:
+  - Migración o reconfiguración planificada del trail — verificar contra ticket de cambio
+  - IaC (Terraform) modificando el trail en un despliegue aprobado — excluir el rol de CI/CD
+level: critical
+fields:
+  - userIdentity.arn
+  - sourceIPAddress
+  - eventName
+  - requestParameters.name
+  - errorCode
+  - errorMessage

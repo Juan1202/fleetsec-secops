@@ -1,0 +1,48 @@
+title: IAM AdministratorAccess Attached Outside Business Hours
+id: 7f3a9c21-4e6b-4a1d-9c2f-1a2b3c4d5e01
+status: experimental
+description: |
+  Detecta la asociación de AdministratorAccess (o una policy con Action:* equivalente) a un
+  usuario/rol/grupo IAM fuera de horario laboral (00:00-05:59 UTC). Corresponde al paso T+00:15
+  del incidente IR-2026-001: el actor, con creds de svc-monitoring, ejecutó AttachUserPolicy
+  AdministratorAccess sobre sí mismo desde un nodo Tor.
+references:
+  - https://attack.mitre.org/techniques/T1098/001/
+  - https://d3fend.mitre.org/technique/d3f:AccountLocking/
+author: Juan Andres Moya
+date: 2026/07/28
+tags:
+  - attack.persistence
+  - attack.privilege-escalation
+  - attack.t1098.001
+logsource:
+  product: aws
+  service: cloudtrail
+detection:
+  iam_attach:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - AttachUserPolicy
+      - AttachRolePolicy
+      - AttachGroupPolicy
+      - PutUserPolicy
+      - PutRolePolicy
+  admin_policy:
+    - requestParameters.policyArn|contains: ':policy/AdministratorAccess'
+    - requestParameters.policyArn|contains: ':policy/PowerUserAccess'
+    - requestParameters.policyDocument|contains: '"Action": "*"'
+    - requestParameters.policyDocument|contains: '"Action":"*"'
+  off_hours:
+    eventTime|re: 'T(0[0-5]):'
+  condition: iam_attach and admin_policy and off_hours
+falsepositives:
+  - Automatización programada en ventana de mantenimiento — excluir su principal explícitamente
+  - Respuesta on-call de un admin ante incidente — correlacionar con el sistema de tickets/PagerDuty
+  - Onboarding de nuevo administrador realizado por el IAM admin fuera de horario
+fields:
+  - userIdentity.arn
+  - sourceIPAddress
+  - requestParameters.userName
+  - requestParameters.policyArn
+  - userAgent
+level: high

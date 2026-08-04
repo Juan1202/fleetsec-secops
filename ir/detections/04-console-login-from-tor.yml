@@ -1,0 +1,39 @@
+title: AWS Console Login From Tor Exit Node
+id: 7f3a9c21-4e6b-4a1d-9c2f-1a2b3c4d5e04
+status: experimental
+description: |
+  Detecta un ConsoleLogin exitoso cuyo origen es un nodo de salida Tor (rango 185.220.101.0/24,
+  relays Tor conocidos). Corresponde a T+00:00 de IR-2026-001: acceso con creds válidas de
+  svc-monitoring desde 185.220.101.22. La lista de IPs debe mantenerse por threat intel
+  (Tor Project bulk exit list); el rango sembrado es el observado en el incidente.
+references:
+  - https://attack.mitre.org/techniques/T1078/004/
+  - https://check.torproject.org/exit-addresses
+  - https://d3fend.mitre.org/technique/d3f:Multi-factorAuthentication/
+author: Juan Andres Moya
+date: 2026/07/28
+tags:
+  - attack.initial-access
+  - attack.persistence
+  - attack.t1078.004
+logsource:
+  product: aws
+  service: cloudtrail
+detection:
+  login:
+    eventSource: signin.amazonaws.com
+    eventName: ConsoleLogin
+  success:
+    responseElements.ConsoleLogin: Success
+  tor_source:
+    sourceIPAddress|cidr: '185.220.101.0/24'
+  condition: login and success and tor_source
+falsepositives:
+  - Investigador o pentester autorizado accediendo vía Tor — coordinar con la ventana del engagement
+  - Usuario legítimo detrás de un exit Tor (raro en entorno corporativo) — verificar contra el baseline del principal
+level: high
+fields:
+  - userIdentity.arn
+  - sourceIPAddress
+  - additionalEventData.MFAUsed
+  - userAgent

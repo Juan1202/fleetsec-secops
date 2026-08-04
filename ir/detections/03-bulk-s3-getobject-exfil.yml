@@ -1,0 +1,64 @@
+title: S3 GetObject on Sensitive PII Bucket
+name: s3_getobject_prod_drivers
+id: 7f3a9c21-4e6b-4a1d-9c2f-1a2b3c4d5e03
+status: experimental
+description: |
+  Regla base: lectura de objetos del bucket de PII prod-drivers. Por sí sola es alto volumen;
+  la señal de exfiltración es la CORRELACIÓN por volumen (ver la regla de correlación abajo).
+  En IR-2026-001 se observaron 387 GetObject en 30 min desde svc-monitoring (T+00:30).
+references:
+  - https://attack.mitre.org/techniques/T1530/
+  - https://attack.mitre.org/techniques/T1567/002/
+  - https://d3fend.mitre.org/technique/d3f:RestrictS3BucketAccess/
+author: Juan Andres Moya
+date: 2026/07/28
+tags:
+  - attack.collection
+  - attack.exfiltration
+  - attack.t1530
+logsource:
+  product: aws
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: s3.amazonaws.com
+    eventName:
+      - GetObject
+      - CopyObject
+    requestParameters.bucketName: prod-drivers
+  condition: selection
+falsepositives:
+  - Jobs de backup del bucket — excluir el principal de automatización conocido
+  - Pipelines de datos (Glue / EMR) — excluir sus roles de servicio
+  - Consultas analíticas por rutas legítimas dentro del cupo esperado
+level: medium
+fields:
+  - userIdentity.arn
+  - requestParameters.bucketName
+  - sourceIPAddress
+---
+title: Bulk S3 GetObject From Single Principal (Exfiltration)
+id: 7f3a9c21-4e6b-4a1d-9c2f-1a2b3c4d5e13
+status: experimental
+description: |
+  Correlación: un mismo principal IAM ejecuta >100 GetObject sobre el bucket de PII en 5 minutos,
+  patrón consistente con exfiltración masiva. Ajustar el umbral al baseline del ambiente.
+correlation:
+  type: event_count
+  rules:
+    - s3_getobject_prod_drivers
+  group-by:
+    - userIdentity.arn
+    - requestParameters.bucketName
+  timespan: 5m
+  condition:
+    gte: 100
+tags:
+  - attack.collection
+  - attack.exfiltration
+  - attack.t1530
+  - attack.t1567.002
+falsepositives:
+  - Jobs de backup o migración masiva autorizados — excluir su principal
+  - Restauración/recuperación de datos legítima — correlacionar con ticket
+level: high
