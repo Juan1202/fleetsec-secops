@@ -87,6 +87,9 @@ conductores. El acceso se originó desde un nodo de la red de anonimización Tor
 - La organización conservará el registro del incidente por un término **mínimo de 5 años**.
 - Se evalúa la **notificación directa a los titulares** dada la naturaleza de los datos
   (recomendada); canal: correo electrónico + aviso público si aplica notificación masiva.
-- **Verificación legal pendiente (punto de decisión #2):** el plazo de 15 días hábiles, la
-  referencia al Decreto 1377 y las cifras de sanción (hasta 2.000 SMMLV) deben ser validados por el
+- **Régimen sancionatorio:** las sanciones aplicables (hasta **2.000 SMMLV**) están previstas en el
+  **Art. 23 de la Ley 1581 de 2012**; el **Decreto 1377 de 2013** es reglamentario (procedimiento de
+  notificación y tratamiento), no la fuente de la sanción.
+- **Verificación legal pendiente (punto de decisión #2):** el plazo de 15 días hábiles y el
+  equivalente en COP de la sanción (aproximado, según el SMMLV vigente) deben ser validados por el
   área legal contra la normativa y la Circular Externa Única de la SIC vigentes antes del envío.

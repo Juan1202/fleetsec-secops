@@ -26,8 +26,13 @@ contuvimos.
 
 - **Ley 1581 (protección de datos):** debemos notificar a la **SIC** (Superintendencia de Industria
   y Comercio) dentro de **15 días hábiles**. Fecha objetivo de envío: **2026-08-18**.
-- **Sanción máxima posible:** hasta **2.000 SMMLV** (~**2.600 millones de pesos** a valores 2026),
-  además de posible suspensión de actividades. *(Cifra a confirmar con legal — ver nota.)*
+- **Sanción máxima posible (Art. 23, Ley 1581 de 2012):** hasta **2.000 SMMLV** —
+  aprox. **COP $3.100 millones** tomando el SMMLV 2026 (~$1.550.000) —, además de posible
+  suspensión de actividades o cierre. *(Cifra aproximada; el valor exacto depende del SMMLV
+  vigente. Confirmar con legal — ver nota.)*
+- **Panorama regulatorio creciente:** existe un proyecto de ley (radicado ago. 2025, **aún no
+  vigente**) que propone elevar el tope a **10.000 SMMLV o 5% de los ingresos**. No aplica hoy,
+  pero marca la tendencia al alza de las sanciones por datos personales.
 - **Notificación a titulares:** recomendada dada la sensibilidad de los datos.
 
 ## Tres acciones inmediatas (≤72 horas)
@@ -42,8 +47,8 @@ contuvimos.
 ## Impacto financiero estimado (rango)
 
 - **Costos directos** (forense, legal, notificación): decenas de millones de COP.
-- **Exposición regulatoria:** hasta ~2.600 millones COP (sanción máxima; probable menor con
-  mitigación demostrada y notificación en término).
+- **Exposición regulatoria:** hasta ~COP $3.100 millones (sanción máxima, Art. 23 Ley 1581;
+  probable menor con mitigación demostrada y notificación en término).
 - **Reputacional:** difícil de cuantificar; la notificación proactiva y las medidas ya tomadas
   reducen el daño.
 
@@ -52,6 +57,7 @@ contuvimos.
 > desplegarla. La evidencia se preservó intacta y la respuesta fue ordenada.
 
 ---
-*Nota de precisión: las cifras de sanción (2.000 SMMLV) y el plazo (15 días hábiles) se citan del
-régimen vigente de Ley 1581 / Decreto 1377 y deben ser confirmadas por el área legal antes de
-cualquier comunicación externa.*
+*Nota de precisión: la sanción (hasta 2.000 SMMLV) proviene del **Art. 23 de la Ley 1581 de 2012**;
+el **Decreto 1377 de 2013** es reglamentario (procedimiento). El plazo de notificación (15 días
+hábiles) y el equivalente en COP (aproximado, según el SMMLV vigente) deben confirmarse con el área
+legal antes de cualquier comunicación externa.*
