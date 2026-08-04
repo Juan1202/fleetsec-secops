@@ -28,32 +28,38 @@ quedan como decisión humana: la IA propone, el autor valida y commitea.
 
 # Anexo — detalle extendido
 
-## 1. Tools y tareas
+## 1. Herramientas y tareas
 
-### 1.1 IA generativa principal
+### 1.1 Asistente de IA: Claude Code (Anthropic)
 
-**Claude.ai** (proyecto principal: `juanandres-secops-skills` + sesiones interactivas)
+**Todo el trabajo de esta entrega se realizó con Claude Code** (CLI de Anthropic). **No se usaron
+ChatGPT, GitHub Copilot ni otras IAs generativas** — mencionar herramientas no usadas contradiría la
+premisa de honestidad de este documento.
 
-Tareas delegadas:
-- **Skills personalizados** (10 SKILL.md, 3 rules, 4 slash commands) usados como base de conocimiento autorizada para cada sub-tarea de seguridad
-- **Drafting de reglas Sigma** (4 reglas con MITRE ATT&CK mapping)
-- **Plantillas Terraform** para módulo `security-baseline` (estructura inicial, no values production)
-- **Fichas VAPT en español** (estructura plantilla por finding, no contenido de evidencia específica del sistema)
-- **Generación DOCX** del reporte VAPT vía `python-docx` (script self-contained `vapt/reports/generate-report.py`)
-- **Documentación**: README, ADRs, diagramas Mermaid, instrucciones de uso
-- **Refactoring de markdown** entre formatos (Confluence storage HTML, ADF, Jira description)
-- **Validación de JSON Schema** para `plugin.json` y outputs estructurados
+Claude Code operó apoyado en dos insumos del autor:
 
-### 1.2 IA generativa secundaria
+- **Skills personalizados** — repositorio propio [`Juan1202/skills-devsecops`](https://github.com/Juan1202/skills-devsecops.git) —
+  usados como base de conocimiento autorizada por sub-tarea:
+  - `secure-iac-terraform` → módulo Terraform `security-baseline` (Sprint 3)
+  - `compliance-mapping` → tabla de cumplimiento CIS/ISO 27001/Ley 1581 (Sprint 3)
+  - `incident-response` → playbook NIST 800-61 (Sprint 4)
+  - `threat-detection-sigma` → 4 reglas Sigma + matriz ATT&CK (Sprint 4)
+  - `vapt-methodology` → estructura de las fichas VAPT (Sprint 2)
+- **Especificaciones de sprint (SPEC)** provistas por el autor como orientación, fijando alcance,
+  gates y **puntos de decisión** por entregable: [`pipeline/SPEC-FSEC-13-pipeline.md`](../pipeline/SPEC-FSEC-13-pipeline.md)
+  (en el repo), más los specs de Terraform (Sprint 3), Incident Response (Sprint 4) y Documentación
+  (Sprint 5) aportados en sesión.
 
-**ChatGPT** (uso puntual, no sistemático)
-- Sanity-check de comandos AWS CLI específicos (verificar sintaxis contra docs oficiales antes de incluir en `ir/playbook.md`)
-- Cross-check ocasional de respuestas críticas de Claude cuando la confianza era baja
+Tareas asistidas: pipeline + app vulnerable, fichas VAPT en español, módulo Terraform, reglas Sigma,
+playbook de IR, generación del DOCX (`python-docx`), ADRs, diagramas Mermaid y esta documentación.
+En todos los casos el autor calibró lo que tiene consecuencias (ver §3).
 
-### 1.3 Herramientas asistidas por IA (no generativas)
+### 1.2 Herramientas de verificación (no generativas)
 
-- **GitHub Copilot** en VS Code para autocompletado durante desarrollo
-- **Semgrep custom rules**: Claude propuso patrones, validación humana antes de incluir en pipeline
+- **aws-cli v2** — verificación de la sintaxis de cada comando del playbook (`--generate-cli-skeleton`).
+- **`sigma check`** (sigma-cli) — validación de las 4 reglas Sigma.
+- **terraform validate · tflint · checkov · trivy** — validación del módulo Terraform.
+- **gitleaks + commitlint** — hooks locales antes de cada commit.
 
 ---
 
