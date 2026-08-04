@@ -74,9 +74,10 @@ Output:
 - Reporta supresiones próximas a expirar (< 14 días)
 - Reporta supresiones expiradas (Review-by ya pasó)
 
-### Automatizada
-- **CI step** en `.github/workflows/security.yml`: corre el script en cada PR y falla si encuentra entradas sin formato canónico
-- **Job semanal** (`audit-suppressions.yml` con `schedule: cron 0 12 * * MON`): abre Issue automáticamente para cada supresión a < 14 días de Review-by
+### Automatizada (FSEC-15)
+- **Gate bloqueante** — job `Suppressions Audit` en [`.github/workflows/security.yml`](../.github/workflows/security.yml): corre el script en cada PR y **falla el build** (vía `Security Gate`, required) si alguna entrada no tiene los 5 campos o está **expirada**. Las próximas a expirar son *warning* aquí (no bloquean).
+- **Job semanal** — [`.github/workflows/audit-suppressions.yml`](../.github/workflows/audit-suppressions.yml) (`schedule: 0 12 * * 1` + `workflow_dispatch`): abre/actualiza un **Issue** (label `suppression-expiry`) cuando hay supresiones a **<14 días** de Review-by o expiradas.
+- **Cobertura:** el script audita `.semgrepignore`, `.trivyignore`, `.gitleaks.toml`, `checkov.yml` y `terraform/checkov.yml`, **incluyendo los bloques indentados dentro de arrays TOML** (`.gitleaks.toml`) — corregido en FSEC-15 (antes se saltaban).
 
 ---
 
@@ -102,18 +103,31 @@ stateDiagram-v2
 
 - Cada supresión tiene su origen rastreable vía `git blame` sobre el archivo
 - Los Issues automáticos de break-glass quedan en el repo con label `break-glass` permanentemente
-- Reporte trimestral de supresiones: ver [`scripts/quarterly-suppression-report.sh`](../scripts/) *(Sprint 1)*
+- El job semanal [`audit-suppressions.yml`](../.github/workflows/audit-suppressions.yml) deja el rastro de expiración como Issues (`suppression-expiry`)
 
 ---
 
 ## 8. Excepciones documentadas conocidas
 
-### Sprint 0 (este sprint)
-*Ninguna supresión activa.*
+Estado a 2026-08-04: **16 supresiones activas, 0 inválidas, 0 expiradas** (`audit-suppressions.sh`).
 
-### Sprint 1+
-*(Se irán agregando aquí con link al PR que las introdujo)*
+| Archivo | Rule / ID | Motivo (resumen) | Review-by | Origen |
+|---|---|---|---|---|
+| `.trivyignore` | 8 CVEs de tomcat-embed-core | No explotables en la superficie REST (features no habilitadas) | 2026-10-31 | Sprint 1 (ADR-004) |
+| `.trivyignore` | 3 CVEs de jackson-databind/core | Sin default typing ni `@JsonTypeInfo` | 2026-10-31 | Sprint 1 (ADR-004) |
+| `.trivyignore` | `AWS-0104` | Egreso 443 del tier app vía NAT (sin exposición inbound) | 2026-10-31 | Sprint 3 (FSEC-20) |
+| `terraform/checkov.yml` | `CKV_AWS_356/111/109/108` | `Resource="*"` inherente en key policies KMS / permission boundary / métricas CloudWatch | 2026-10-31 | Sprint 3 |
+| `terraform/checkov.yml` | `CKV_AWS_144` | Single-region; durabilidad vía Object Lock | 2026-10-31 | Sprint 3 |
+| `terraform/checkov.yml` | `CKV2_AWS_62` | Event notifications específicas del ambiente | 2026-10-31 | Sprint 3 |
+| `terraform/checkov.yml` | `CKV2_AWS_3` | FP del provider AWS 5.x (features vía recurso nuevo) | 2026-10-31 | Sprint 3 |
+| `terraform/checkov.yml` | `CKV_AWS_252` | Detección superior vía metric filters | 2026-10-31 | Sprint 3 |
+| `.gitleaks.toml` | `paths` (fixtures VAPT / smoke-tests) | JWT sintéticos de PoC, no credenciales reales | 2026-09-15 / 2026-10-30 | Sprint 2 |
+| `.gitleaks.toml` | `regexes` (placeholders) | Patrones de ejemplo en docs | 2026-09-15 | Sprint 0 |
+| `.gitleaks.toml` | `hashicorp-tf-password` (`IAM_PASSWORD_POLICY`) | `source_identifier` de AWS Config, no un secreto | 2026-10-31 | Sprint 3 |
+
+> El detalle completo de cada supresión (los 5 campos) vive en el propio archivo, auditable por
+> `git blame` y validado por el gate `Suppressions Audit`.
 
 ---
 
-*Última actualización: 2026-06-15*
+*Última actualización: 2026-08-04 (FSEC-15)*
