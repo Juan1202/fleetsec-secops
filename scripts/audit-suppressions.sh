@@ -58,11 +58,12 @@ validate_block() {
   local file=$1
   local block_text=$2
 
-  local rule=$(echo "$block_text" | grep -oE '^# Rule: .+' | head -1 | sed 's/^# Rule: //')
-  local reason=$(echo "$block_text" | grep -oE '^# Reason: .+' | head -1 | sed 's/^# Reason: //')
-  local date_field=$(echo "$block_text" | grep -oE '^# Date: [0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1 | sed 's/^# Date: //')
-  local responsible=$(echo "$block_text" | grep -oE '^# Responsible: .+' | head -1 | sed 's/^# Responsible: //')
-  local review_by=$(echo "$block_text" | grep -oE '^# Review-by: [0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1 | sed 's/^# Review-by: //')
+  # Tolera indentación (p. ej. bloques dentro de arrays TOML en .gitleaks.toml).
+  local rule=$(echo "$block_text" | grep -oE '^[[:space:]]*# Rule: .+' | head -1 | sed 's/^[[:space:]]*# Rule: //')
+  local reason=$(echo "$block_text" | grep -oE '^[[:space:]]*# Reason: .+' | head -1 | sed 's/^[[:space:]]*# Reason: //')
+  local date_field=$(echo "$block_text" | grep -oE '^[[:space:]]*# Date: [0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1 | sed 's/^[[:space:]]*# Date: //')
+  local responsible=$(echo "$block_text" | grep -oE '^[[:space:]]*# Responsible: .+' | head -1 | sed 's/^[[:space:]]*# Responsible: //')
+  local review_by=$(echo "$block_text" | grep -oE '^[[:space:]]*# Review-by: [0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1 | sed 's/^[[:space:]]*# Review-by: //')
 
   local missing=()
   [ -z "$rule" ] && missing+=("Rule")
@@ -140,12 +141,12 @@ for file in "${SUPPRESSION_FILES[@]}"; do
 
   echo -e "${BLUE}── $file ──${NC}"
 
-  # Extraer bloques: secuencia de líneas que empiezan con "# " seguidas por una línea no-comentario
-  # Algoritmo simple: buscar líneas "# Rule:" y tomar las 5 líneas siguientes para validar
+  # Extraer bloques: buscar líneas "# Rule:" (con o SIN indentación — los bloques del
+  # .gitleaks.toml viven indentados dentro de arrays TOML) y tomar las 5 líneas siguientes.
   while IFS= read -r line_num; do
     block=$(sed -n "${line_num},$((line_num + 4))p" "$file")
     validate_block "$file" "$block"
-  done < <(grep -n '^# Rule:' "$file" | cut -d: -f1)
+  done < <(grep -nE '^[[:space:]]*# Rule:' "$file" | cut -d: -f1)
 done
 
 # ──────────────────────────────────────────────────────────────────────────────
