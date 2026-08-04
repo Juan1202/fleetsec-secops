@@ -1,0 +1,110 @@
+# Break-glass (FSEC-14)
+# 1) Cuando el pipeline de seguridad FALLA en un PR, abre un Issue break-glass (labels
+#    security/critical/break-glass) documentando la excepción.
+# 2) Cuando se intenta CERRAR un Issue break-glass, valida que el cierre tenga
+#    Reason: / Expires: / Approver:. Si falta alguno, lo REABRE.
+# Ver docs/break-glass.md (incluye el matiz de evaluación individual, ADR-009).
+name: Break-glass
+
+on:
+  workflow_run:
+    workflows: ["DevSecOps Security Pipeline"]
+    types: [completed]
+  issues:
+    types: [closed]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  actions: read
+
+jobs:
+  # ── 1 · Abrir Issue break-glass cuando el pipeline falla en un PR ────────────
+  open-on-gate-failure:
+    name: Abrir Issue en fallo de gate
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Asegurar labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh label create break-glass --repo "$REPO" --color 5319E7 --description "Excepción documentada a un gate de seguridad" 2>/dev/null || true
+          gh label create critical    --repo "$REPO" --color B60205 --description "Severidad crítica" 2>/dev/null || true
+          gh label create security     --repo "$REPO" --color D93F0B --description "Seguridad" 2>/dev/null || true
+
+      - name: Crear o actualizar Issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          title="🚨 Break-glass: pipeline de seguridad falló en \`${BRANCH}\`"
+          body=$(cat <<EOF
+          El pipeline **DevSecOps Security Pipeline** falló en un PR sobre la rama \`${BRANCH}\`.
+
+          - **Run:** ${RUN_URL}
+          - **Gate:** Security Gate (required) — el PR **no es mergeable** hasta resolver.
+
+          ## Opciones
+          1. **Remediar** el hallazgo (preferido) → el gate pasa a verde solo.
+          2. **Break-glass** (excepción documentada): si el hallazgo se acepta con justificación,
+             registrar la excepción y cerrar este Issue con un comentario que contenga **las 3 líneas**:
+             \`\`\`
+             Reason: <motivo específico>
+             Expires: YYYY-MM-DD
+             Approver: <handle del aprobador>
+             \`\`\`
+          El cierre sin esas 3 líneas se **revierte automáticamente** (este Issue se reabre).
+
+          > **Aprobación:** requiere 2 reviewers del CODEOWNERS de paths sensibles. En esta prueba
+          > **individual**, el bypass lo ejecuta el admin (\`--admin\`, enforce_admins off, coherente
+          > con ADR-009); en producción serían **2 personas distintas**. Ver \`docs/break-glass.md\`.
+
+          _Generado por \`.github/workflows/break-glass-issue.yml\` (run ${RUN_ID})._
+          EOF
+          )
+          existing=$(gh issue list --repo "$REPO" --label break-glass --state open --search "in:title ${BRANCH}" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$REPO" --body "Nuevo fallo del pipeline en \`${BRANCH}\`: ${RUN_URL}"
+          else
+            gh issue create --repo "$REPO" --title "$title" \
+              --label break-glass --label security --label critical --body "$body"
+          fi
+
+  # ── 2 · Validar el cierre de un Issue break-glass ───────────────────────────
+  validate-closure:
+    name: Validar cierre (Reason/Expires/Approver)
+    if: >-
+      github.event_name == 'issues' &&
+      contains(github.event.issue.labels.*.name, 'break-glass')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar Reason/Expires/Approver en body + comentarios
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUM: ${{ github.event.issue.number }}
+        run: |
+          # Junta el body + todos los comentarios y busca las 3 líneas obligatorias.
+          text=$( { gh issue view "$NUM" --repo "$REPO" --json body --jq '.body';
+                    gh issue view "$NUM" --repo "$REPO" --json comments --jq '.comments[].body'; } )
+          missing=""
+          echo "$text" | grep -qiE '^[[:space:]]*Reason:[[:space:]]*\S'   || missing="$missing Reason"
+          echo "$text" | grep -qiE '^[[:space:]]*Expires:[[:space:]]*[0-9]{4}-[0-9]{2}-[0-9]{2}' || missing="$missing Expires"
+          echo "$text" | grep -qiE '^[[:space:]]*Approver:[[:space:]]*\S' || missing="$missing Approver"
+
+          if [ -n "$missing" ]; then
+            echo "Cierre inválido — faltan:$missing → reabriendo"
+            gh issue reopen "$NUM" --repo "$REPO"
+            gh issue comment "$NUM" --repo "$REPO" --body "⛔ Cierre revertido: falta(n)**$missing**. Un Issue break-glass solo se cierra con un comentario que incluya \`Reason:\`, \`Expires: YYYY-MM-DD\` y \`Approver:\`. Ver \`docs/break-glass.md\`."
+            exit 1
+          fi
+          echo "✅ Cierre válido — Reason/Expires/Approver presentes."
