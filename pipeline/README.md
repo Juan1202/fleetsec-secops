@@ -1,12 +1,17 @@
 # pipeline/ · DevSecOps Security Pipeline (FSEC-13)
 
-> Pipeline de GitHub Actions con 8 stages de seguridad + commitlint sobre la app vulnerable.
+> Pipeline de GitHub Actions con **10 stages** (incluye Tests y Suppressions Audit) → Security Gate,
+> sobre la app vulnerable.
 > Workflow: [`.github/workflows/security.yml`](../.github/workflows/security.yml) · Spec: [`SPEC-FSEC-13-pipeline.md`](SPEC-FSEC-13-pipeline.md) · Decisión del gate: [ADR-004](../docs/ADRs/ADR-004-pipeline-gate-strategy.md).
 
-## Los 8 stages
+## Los 10 stages
+
+> El pipeline nació con 8 stages (FSEC-13); luego se añadieron **Tests** (habilitar JUnit, PR-0) y
+> **Suppressions Audit** (FSEC-15). Total: 10 jobs que agregan al `security-gate`.
 
 | # | Stage | Herramienta | Gate | SARIF |
 |---|---|---|---|---|
+| 1 | Tests | JUnit (`mvn test`) | fallar si algún test falla | n/a |
 | 2 | SAST | Semgrep (`p/java`, `p/owasp-top-ten`, `p/secrets`) + 2 custom rules | fallar en ERROR | ✅ |
 | 3 | SCA | Trivy **rootfs** sobre el fat jar | fallar en CVSS≥8.0 | ✅ |
 | 4 | Container | Trivy image + check tag pinneado | fallar en CRITICAL, no `:latest` | ✅ |
@@ -14,10 +19,11 @@
 | 6 | DAST | OWASP ZAP autenticado (JWT) vía OpenAPI | fallar en HIGH · MEDIUM→issue | via issues |
 | 7 | SBOM | Syft → CycloneDX JSON | genera artifact | n/a |
 | 8 | Secrets | gitleaks-action | fallar si hay leak | ✅ |
+| 9 | Suppressions | `audit-suppressions.sh` (formato canónico 5 campos) | fallar si inválida/expirada | n/a |
 | — | commitlint | Conventional Commits | fallar si no cumple | n/a |
-| — | security-gate | agrega los 8 → required check único | fallar si algún stage falla | n/a |
+| — | security-gate | agrega los 10 → required check único | fallar si algún stage falla | n/a |
 
-Stages 2-5 + 7-8 corren en **paralelo** (jobs independientes). `security-gate` los agrega con `needs` + `if: always()`.
+Los stages corren en **paralelo** (jobs independientes). `security-gate` los agrega con `needs` + `if: always()`.
 
 ## Matriz de cobertura por vector
 
