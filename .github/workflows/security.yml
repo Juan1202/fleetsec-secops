@@ -490,6 +490,20 @@ jobs:
         if: always()
         run: docker compose -f app/docker-compose.yml down || true
 
+  # ── Stage 9 · Auditoría de supresiones (FSEC-15) ────────────────────────────
+  # Valida el formato canónico de 5 campos en TODO archivo de supresión y falla si
+  # falta algún campo o si una supresión está EXPIRADA. Las próximas a expirar (<14d)
+  # son warning aquí (no bloquean) y las levanta el job semanal audit-suppressions.yml.
+  suppressions:
+    name: Suppressions Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validar formato canónico de supresiones
+        run: bash scripts/audit-suppressions.sh
+
   # ── Gate final · agrega resultados ──────────────────────────────────────────
   # Único required status check para branch protection (evita listar los 8).
   # Política del gate: ADR-004 (híbrido). Falla si algún stage no fue exitoso.
@@ -498,7 +512,7 @@ jobs:
   security-gate:
     name: Security Gate
     runs-on: ubuntu-latest
-    needs: [sast, sca, container, iac, dast, sbom, secrets, commitlint, test]
+    needs: [sast, sca, container, iac, dast, sbom, secrets, commitlint, test, suppressions]
     if: always()
     steps:
       - name: Agregar resultados de los stages
@@ -513,7 +527,8 @@ jobs:
             SBOM       "${{ needs.sbom.result }}" \
             Secrets    "${{ needs.secrets.result }}" \
             commitlint "${{ needs.commitlint.result }}" \
-            Tests      "${{ needs.test.result }}"
+            Tests      "${{ needs.test.result }}" \
+            Suppress   "${{ needs.suppressions.result }}"
 
           failed=""
           for r in \
@@ -525,7 +540,8 @@ jobs:
             "DAST:${{ needs.dast.result }}" \
             "SBOM:${{ needs.sbom.result }}" \
             "Secrets:${{ needs.secrets.result }}" \
-            "commitlint:${{ needs.commitlint.result }}"; do
+            "commitlint:${{ needs.commitlint.result }}" \
+            "Suppressions:${{ needs.suppressions.result }}"; do
             [ "${r##*:}" != "success" ] && failed="$failed ${r%%:*}"
           done
 
