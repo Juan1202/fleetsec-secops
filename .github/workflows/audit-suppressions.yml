@@ -1,0 +1,76 @@
+# Auditoría semanal de supresiones (FSEC-15)
+# Corre el audit y, si hay supresiones EXPIRADAS o próximas a expirar (<14 días de Review-by),
+# abre/actualiza un Issue. NO bloquea nada — es la red de seguridad proactiva; el gate bloqueante
+# vive en security.yml (job "Suppressions Audit").
+name: Weekly Suppression Audit
+
+on:
+  schedule:
+    - cron: "0 12 * * 1" # lunes 12:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    name: Audit de expiración
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ejecutar audit y capturar
+        id: audit
+        run: |
+          set +e
+          bash scripts/audit-suppressions.sh > audit-output.txt 2>&1
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+          expired=$(grep -aE '^  Expiradas:' audit-output.txt | awk '{print $NF}')
+          expiring=$(grep -aE '^  Próximas a expirar' audit-output.txt | awk '{print $NF}')
+          echo "expired=${expired:-0}"   >> "$GITHUB_OUTPUT"
+          echo "expiring=${expiring:-0}" >> "$GITHUB_OUTPUT"
+          cat audit-output.txt
+
+      - name: Asegurar labels
+        if: steps.audit.outputs.expired != '0' || steps.audit.outputs.expiring != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create suppression-expiry --color FBCA04 --description "Supresión próxima a expirar o expirada" 2>/dev/null || true
+          gh label create security --color D93F0B --description "Seguridad" 2>/dev/null || true
+
+      - name: Abrir o actualizar Issue
+        if: steps.audit.outputs.expired != '0' || steps.audit.outputs.expiring != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          detail=$(sed -n '/📄 Escaneando/,/Resumen de auditoría/p' audit-output.txt)
+          body=$(cat <<EOF
+          El audit semanal de supresiones detectó entradas que requieren acción.
+
+          - **Expiradas:** ${{ steps.audit.outputs.expired }}
+          - **Próximas a expirar (<14 días):** ${{ steps.audit.outputs.expiring }}
+
+          <details><summary>Salida del audit</summary>
+
+          \`\`\`
+          ${detail}
+          \`\`\`
+          </details>
+
+          **Acción requerida:** revalidar la supresión (actualizar \`Date\` + \`Review-by\`) o eliminarla si el hallazgo fue remediado. Ver [\`docs/suppression-policy.md\`](../blob/main/docs/suppression-policy.md).
+
+          _Generado automáticamente por \`.github/workflows/audit-suppressions.yml\` el $(date -u +%Y-%m-%d)._
+          EOF
+          )
+          existing=$(gh issue list --label suppression-expiry --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            echo "Actualizando Issue #$existing"
+            gh issue comment "$existing" --body "$body"
+          else
+            echo "Creando Issue nuevo"
+            gh issue create --title "⏳ Supresiones próximas a expirar / expiradas" \
+              --label suppression-expiry --label security --body "$body"
+          fi
