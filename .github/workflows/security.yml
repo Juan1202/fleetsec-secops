@@ -289,8 +289,11 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p checkov-out
+          # --config-file carga las supresiones canónicas del módulo terraform
+          # (terraform/checkov.yml, formato 5 campos validado por audit-suppressions.sh).
           docker run --rm -v "$PWD:/src" bridgecrew/checkov:latest \
             -d /src --framework dockerfile,terraform \
+            --config-file /src/terraform/checkov.yml \
             -o sarif --output-file-path /src/checkov-out
 
       - name: Upload SARIF a Code Scanning
