@@ -186,7 +186,7 @@ quedan como decisión humana: la IA propone, el autor valida y commitea.
 
 | Sistema | Link |
 |---|---|
-| Jira FSEC | https://jandresmoya982.atlassian.net/jira/software/projects/FSEC |
+| Jira FSEC | https://jandresmoya982.atlassian.net/jira/software/projects/FSEC/list?jql=project%20%3D%20FSEC%20ORDER%20BY%20cf%5B10019%5D%20ASC |
 | GitHub Actions | [pipeline](https://github.com/Juan1202/fleetsec-secops/actions) |
 
 **Estado:** Proyecto completo — Sprints 1–5 en `main` (CI verde, Security Gate *required*) y video de
