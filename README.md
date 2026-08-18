@@ -34,7 +34,7 @@ FleetSec maneja telemetría de **~60.000 vehículos** con datos personales bajo 
 | 02 | VAPT — 11 vulnerabilidades + remediación + bonus | 25% | [`vapt/`](vapt/) | ✅ Completo |
 | 03 | AWS Terraform Hardening | 20% | [`terraform/`](terraform/) | ✅ Completo |
 | 04 | Incident Response Playbook | 20% | [`ir/`](ir/) | ✅ Completo |
-| 05 | Documentación + Sustentación | 10% | [`docs/`](docs/) | ✅ Docs · 🎥 video |
+| 05 | Documentación + Sustentación | 10% | [`docs/`](docs/) | ✅ Completo (docs + video) |
 
 **Bonus:** docker-compose ✓ · vulns extra (B-01, V-11) ✓ · Conventional Commits 100% (merge/rebase,
 nunca squash) ✓.
@@ -176,7 +176,11 @@ quedan como decisión humana: la IA propone, el autor valida y commitea.
 
 ## 🎥 Sustentación
 
-📺 **Video (YouTube unlisted, ≤10 min, cámara visible):** ⬜ _**TODO (FSEC-31):** pegar el link aquí tras la grabación._
+📺 **Video de sustentación** (YouTube, ≤10 min, cámara visible) — clic en la imagen para verlo:
+
+[![Ver la sustentación en YouTube](https://img.youtube.com/vi/vrVh6rbGIek/hqdefault.jpg)](https://youtu.be/vrVh6rbGIek)
+
+▶️ **Enlace directo:** https://youtu.be/vrVh6rbGIek
 
 ## 📈 Tracking
 
@@ -185,8 +189,8 @@ quedan como decisión humana: la IA propone, el autor valida y commitea.
 | Jira FSEC | https://jandresmoya982.atlassian.net/jira/software/projects/FSEC |
 | GitHub Actions | [pipeline](https://github.com/Juan1202/fleetsec-secops/actions) |
 
-**Estado:** Sprints 1–5 completos (técnicos en `main`, CI verde, Security Gate *required*). Pendiente
-solo el video de sustentación (FSEC-31).
+**Estado:** Proyecto completo — Sprints 1–5 en `main` (CI verde, Security Gate *required*) y video de
+sustentación publicado (FSEC-31).
 
 ## 👤 Autor
 
